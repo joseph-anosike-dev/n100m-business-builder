@@ -40,7 +40,7 @@ Master Product Specification v0.3.1.
 - Mobile bottom bar: Dashboard, Offers, Leads, Models. Discovery is reached from the Dashboard card.
 - Android: Capacitor 7 (`@capacitor/core`, `@capacitor/android`, `@capacitor/app`, `@capacitor/cli`), app id
   `com.n100m.businessbuilder` (a placeholder choice; changing it later means a new app identity on devices).
-  Debug APK only; no release signing. Web assets come from `dist/` (`webDir`).
+  Debug APK only; persistent debug key via secret (Task 004.2); no release signing. Web assets come from `dist/` (`webDir`).
 - Spec item D14 (mobile access to Roadmap, My Business, Library, Settings) is still open. Interim
   choice: a "More" button in the top app bar opens a sheet. Switching to a fifth "More" tab is a
   one-line change in `src/app/navigation.ts`.
@@ -230,6 +230,25 @@ Task 004 assertion was weakened or removed.
   write method rejects with a `StorageError` for bad input; an unopenable database (stored version newer than
   the code) rejects with a `StorageError` whose cause is `VersionError`; a rejected call stores nothing; a
   successful call still resolves normally.
+
+## Completed in Task 004.2 (persistent debug signing)
+- `.github/workflows/android-debug-apk.yml`: new step "Restore persistent debug keystore" runs before
+  `gradle assembleDebug`. It decodes the repository secret `DEBUG_KEYSTORE_BASE64` to
+  `~/.android/debug.keystore` (the Android Gradle Plugin's standard debug keystore path) and checks that it
+  holds alias `androiddebugkey` with store password `android`. If the secret is missing or invalid the step
+  fails with an explicit error; no new key is generated. No Gradle files changed: `android/app/build.gradle` has
+  no `signingConfigs`, so the default debug config (alias `androiddebugkey`, passwords `android`) is used.
+- Trigger, tests, steps, artifact name and output path are unchanged. No keystore or secret is in Git.
+- This is a debug key only. Release signing is still not set up and must use a separate key.
+- **Action required: the GitHub secret `DEBUG_KEYSTORE_BASE64` still needs to be created.** Until then the
+  workflow fails at the new step. One-time setup (Windows PowerShell):
+  1. `keytool -genkeypair -v -keystore "$HOME\debug.keystore" -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"`
+  2. `[Convert]::ToBase64String([IO.File]::ReadAllBytes("$HOME\debug.keystore")) | Set-Clipboard`
+  3. GitHub repo > Settings > Secrets and variables > Actions > New repository secret; name
+     `DEBUG_KEYSTORE_BASE64`; paste the value; save.
+  Keep a private backup of `debug.keystore`; do not commit it. Losing it means one more uninstall.
+- Not tested: the workflow has not run with the secret, and update-over-install has not been verified. The first
+  APK signed with this key still needs a one-time uninstall of any APK signed by a previous runner key.
 
 ## Verification status
 Run in the delivery environment (no network, so `npm install` could not run):
