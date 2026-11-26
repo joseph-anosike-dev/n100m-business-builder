@@ -32,3 +32,23 @@ Before stopping:
 - Obsidian-compatible Markdown import/export is essential.
 - Preserve user data and portability.
 - Follow the approved Master Product Specification.
+
+
+## Code Delivery and File Transfer
+
+The developer uses Claude's website, not Claude Code.
+
+For every implementation task:
+
+1. Work on the files relevant to the assigned task.
+2. Package all new and modified files into a downloadable ZIP archive.
+3. Include only the files needed to apply the changes. Never package the entire project unnecessarily.
+4. Preserve the original directory structure inside the ZIP so files can be extracted directly into the project root.
+5. Do not paste source code or large code blocks into chat.
+6. Provide a brief summary of changed files, implementation details, dependencies and any required setup commands.
+7. Clearly identify any files that must not be overwritten.
+8. Do not claim that changes have been tested unless they actually have been tested.
+
+The user will download the ZIP, extract it into the VS Code project folder, inspect the changes, and commit them to GitHub.
+
+Every delivery must be suitable for a clean handover to another developer.
