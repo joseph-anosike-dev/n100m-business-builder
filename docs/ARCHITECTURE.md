@@ -53,6 +53,39 @@ Tokens live in `src/styles/tokens.css`: colour, type, spacing, radius, sizing, w
 Theme is Light, Dark or System. The choice is stored through `StorageAdapter`; a copy in `localStorage`
 exists only so `index.html` can apply it before first paint.
 
+### Brand colour system (authoritative)
+
+The eight official brand values are declared once, exactly as supplied, at the top of `tokens.css`:
+`--offwhite`, `--offwhite-2`, `--black`, `--black-soft`, `--red`, `--red-hover`, `--gold`, `--gold-text`.
+No other hue is used anywhere. Variations are the brand values at reduced opacity
+(`rgb(var(--black-rgb) / 0.16)` and similar), plus one precomputed tint, `--gold-light`
+(65% gold, 35% offwhite), used only for small selected text on dark surfaces.
+`color-mix()` is deliberately not used, so older Android WebViews render correctly.
+
+Components use only the semantic `--color-*` tokens, never the brand values directly.
+
+| Role | Light | Dark |
+|---|---|---|
+| Page background | offwhite | black |
+| Surfaces (cards, bars, sidebar, sheet) | offwhite-2 | black-soft |
+| Text | black | offwhite |
+| Muted text | black at 72% | offwhite at 72% |
+| Borders | black at 16% | offwhite at 16% |
+| Hover background | black at 6% | offwhite at 8% |
+| Primary button | red, hover red-hover, offwhite label | same, plus a 1px offwhite edge |
+| Selected state (nav, tabs, More sheet) | red on red at 10% | gold-light on gold at 12% |
+| Accent button (the Dashboard call to action) | gold fill, black label | same |
+| Accent icons | gold-text | gold |
+| Hero card | red, offwhite text | same |
+| Logo mark | black badge, gold glyph | same |
+| Focus ring | black (offwhite inside the hero) | gold (offwhite inside the hero) |
+
+Why dark differs: red `#7A1F1F` has about 1.5:1 contrast against black-soft, so it cannot carry
+text or selection on dark surfaces. Gold takes that job there.
+
+`--gold-text` is 4.6:1 on offwhite but 4.2:1 on offwhite-2. Use it for icons and large text on
+cards; use it for small text only on the page background.
+
 Rules baked into the shell: 44px minimum touch targets, safe-area insets, visible focus ring, reduced
 motion respected, no horizontal page scroll, offline-friendly (system fonts, no external requests).
 

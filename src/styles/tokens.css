@@ -1,27 +1,82 @@
 /* Design tokens. One set, light and dark (spec 17.5).
-   Palette: deep naira green for structure, amber for the one call to action
-   per screen, cool green-tinted neutrals so the green never looks pasted on. */
+
+   COLOUR SYSTEM
+   The eight brand values below are the only colours in the application.
+   Everything else is either one of them or one of them at reduced opacity,
+   so a surface can sit on any background. Do not add other hues.
+   Components must use the semantic tokens (--color-*), never the brand
+   values directly, so both themes keep working.
+
+   Brand value     Used for
+   offwhite        light page background; text and icons on dark/red
+   offwhite-2      light surfaces (cards, bars, sidebar)
+   black           dark page background; light-theme text; mark badge
+   black-soft      dark surfaces
+   red             primary actions, selected state (light), hero
+   red-hover       hover state of red actions
+   gold            accent fills, accent icons (dark), mark glyph
+   gold-text       gold when it must be read on light backgrounds.
+                   Contrast 4.6:1 on offwhite, 4.2:1 on offwhite-2, so
+                   use it for icons and large text on offwhite-2, and for
+                   small text only on offwhite. */
 
 :root {
-  color-scheme: light;
+  /* ---- Brand palette (authoritative) ---- */
+  --offwhite: #F7F4EF;
+  --offwhite-2: #EFEAE0;
+  --black: #1A1A1A;
+  --black-soft: #2B2B2B;
+  --red: #7A1F1F;
+  --red-hover: #8F2727;
+  --gold: #B8923E;
+  --gold-text: #8A6A1F;
 
-  /* Colour */
-  --color-bg: #f3f6f3;
-  --color-surface: #ffffff;
-  --color-sunken: #e8eee9;
-  --color-ink: #14201b;
-  --color-muted: #52655c;
-  --color-line: #d3dcd5;
-  --color-primary: #0f5c3a;
-  --color-primary-ink: #ffffff;
-  --color-primary-soft: #dcece3;
-  --color-accent: #f2b134;
-  --color-accent-ink: #2a1d00;
-  --color-hero-bg: #0f3d2b;
-  --color-hero-ink: #f3f8f4;
-  --color-hero-muted: #bcd3c6;
-  --color-focus: #1c6dd0;
-  --color-scrim: rgb(10 20 15 / 0.5);
+  /* RGB copies of the same values, only so opacity variations can be written
+     as rgb(var(--x-rgb) / a). Keep in step with the hex values above. */
+  --offwhite-rgb: 247 244 239;
+  --offwhite-2-rgb: 239 234 224;
+  --black-rgb: 26 26 26;
+  --black-soft-rgb: 43 43 43;
+  --red-rgb: 122 31 31;
+  --gold-rgb: 184 146 62;
+
+  /* Derived tint, not a new brand colour: 65% gold blended with 35% offwhite.
+     Used only where gold must be read as small text on dark surfaces. */
+  --gold-light: #CEB47C;
+
+  /* ---- Light theme (semantic) ---- */
+  color-scheme: light;
+  --color-bg: var(--offwhite);
+  --color-surface: var(--offwhite-2);
+  --color-sunken: rgb(var(--black-rgb) / 0.05);
+  --color-hover: rgb(var(--black-rgb) / 0.06);
+  --color-ink: var(--black);
+  --color-muted: rgb(var(--black-rgb) / 0.72);
+  --color-line: rgb(var(--black-rgb) / 0.16);
+
+  --color-primary: var(--red);
+  --color-primary-hover: var(--red-hover);
+  --color-primary-ink: var(--offwhite);
+  --color-primary-edge: transparent;
+
+  --color-active: var(--red);
+  --color-active-soft: rgb(var(--red-rgb) / 0.1);
+
+  --color-accent: var(--gold);
+  --color-accent-ink: var(--black);
+  --color-accent-text: var(--gold-text);
+
+  --color-hero-bg: var(--red);
+  --color-hero-ink: var(--offwhite);
+  --color-hero-muted: rgb(var(--offwhite-rgb) / 0.82);
+  --color-hero-mark: rgb(var(--offwhite-rgb) / 0.08);
+
+  --color-mark-bg: var(--black);
+  --color-mark-ink: var(--gold);
+
+  --color-focus: var(--black);
+  --color-focus-on-hero: var(--offwhite);
+  --color-scrim: rgb(var(--black-rgb) / 0.5);
 
   /* Type */
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -58,38 +113,78 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --color-bg: #0d1411;
-  --color-surface: #151f1a;
-  --color-sunken: #1c2822;
-  --color-ink: #e6eee9;
-  --color-muted: #9db1a7;
-  --color-line: #2b3a33;
-  --color-primary: #4cc38a;
-  --color-primary-ink: #06251a;
-  --color-primary-soft: #1d3a2d;
-  --color-hero-bg: #17372a;
-  --color-hero-ink: #f1f7f3;
-  --color-hero-muted: #b4cdbf;
-  --color-focus: #8cc4ff;
-  --color-scrim: rgb(0 0 0 / 0.6);
+  --color-bg: var(--black);
+  --color-surface: var(--black-soft);
+  --color-sunken: var(--black);
+  --color-hover: rgb(var(--offwhite-rgb) / 0.08);
+  --color-ink: var(--offwhite);
+  --color-muted: rgb(var(--offwhite-rgb) / 0.72);
+  --color-line: rgb(var(--offwhite-rgb) / 0.16);
+
+  --color-primary: var(--red);
+  --color-primary-hover: var(--red-hover);
+  --color-primary-ink: var(--offwhite);
+  /* Red on near-black is a faint shape, so give filled red buttons an edge. */
+  --color-primary-edge: rgb(var(--offwhite-rgb) / 0.4);
+
+  /* Red is too dark to read on dark surfaces, so selection uses gold
+     (a lighter tint of gold, so small text clears 4.5:1). */
+  --color-active: var(--gold-light);
+  --color-active-soft: rgb(var(--gold-rgb) / 0.12);
+
+  --color-accent: var(--gold);
+  --color-accent-ink: var(--black);
+  --color-accent-text: var(--gold);
+
+  --color-hero-bg: var(--red);
+  --color-hero-ink: var(--offwhite);
+  --color-hero-muted: rgb(var(--offwhite-rgb) / 0.82);
+  --color-hero-mark: rgb(var(--offwhite-rgb) / 0.08);
+
+  --color-mark-bg: var(--black);
+  --color-mark-ink: var(--gold);
+
+  --color-focus: var(--gold);
+  --color-focus-on-hero: var(--offwhite);
+  --color-scrim: rgb(var(--black-rgb) / 0.6);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --color-bg: #0d1411;
-    --color-surface: #151f1a;
-    --color-sunken: #1c2822;
-    --color-ink: #e6eee9;
-    --color-muted: #9db1a7;
-    --color-line: #2b3a33;
-    --color-primary: #4cc38a;
-    --color-primary-ink: #06251a;
-    --color-primary-soft: #1d3a2d;
-    --color-hero-bg: #17372a;
-    --color-hero-ink: #f1f7f3;
-    --color-hero-muted: #b4cdbf;
-    --color-focus: #8cc4ff;
-    --color-scrim: rgb(0 0 0 / 0.6);
+    --color-bg: var(--black);
+    --color-surface: var(--black-soft);
+    --color-sunken: var(--black);
+    --color-hover: rgb(var(--offwhite-rgb) / 0.08);
+    --color-ink: var(--offwhite);
+    --color-muted: rgb(var(--offwhite-rgb) / 0.72);
+    --color-line: rgb(var(--offwhite-rgb) / 0.16);
+
+    --color-primary: var(--red);
+    --color-primary-hover: var(--red-hover);
+    --color-primary-ink: var(--offwhite);
+    /* Red on near-black is a faint shape, so give filled red buttons an edge. */
+    --color-primary-edge: rgb(var(--offwhite-rgb) / 0.4);
+
+    /* Red is too dark to read on dark surfaces, so selection uses gold
+       (a lighter tint of gold, so small text clears 4.5:1). */
+    --color-active: var(--gold-light);
+    --color-active-soft: rgb(var(--gold-rgb) / 0.12);
+
+    --color-accent: var(--gold);
+    --color-accent-ink: var(--black);
+    --color-accent-text: var(--gold);
+
+    --color-hero-bg: var(--red);
+    --color-hero-ink: var(--offwhite);
+    --color-hero-muted: rgb(var(--offwhite-rgb) / 0.82);
+    --color-hero-mark: rgb(var(--offwhite-rgb) / 0.08);
+
+    --color-mark-bg: var(--black);
+    --color-mark-ink: var(--gold);
+
+    --color-focus: var(--gold);
+    --color-focus-on-hero: var(--offwhite);
+    --color-scrim: rgb(var(--black-rgb) / 0.6);
   }
 }
