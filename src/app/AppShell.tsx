@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNativeShell } from '../native/useNativeShell';
 import { Screen } from '../routes';
 import { BottomNav } from './BottomNav';
 import { MoreSheet } from './MoreSheet';
@@ -11,6 +12,7 @@ const APP_NAME = 'N100M Business Builder';
 
 export function AppShell() {
   const path = useRoute();
+  useNativeShell();
   const mod = moduleForPath(path);
   const [moreOpen, setMoreOpen] = useState(false);
   const [railExpanded, setRailExpanded] = useState(false);

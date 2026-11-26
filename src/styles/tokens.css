@@ -21,6 +21,17 @@
                    small text only on offwhite. */
 
 :root {
+  /* ---- Safe areas ----
+     Use these instead of env(safe-area-inset-*) directly. env() is the web
+     standard. Inside the Android WebView, Capacitor's SystemBars plugin also
+     publishes --safe-area-inset-* on :root, because older WebViews report
+     env() as 0. max() takes whichever source has a value, so both work and
+     nothing is counted twice. On the web, both resolve to 0 or the notch. */
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --safe-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --safe-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+
   /* ---- Brand palette (authoritative) ---- */
   --offwhite: #F7F4EF;
   --offwhite-2: #EFEAE0;

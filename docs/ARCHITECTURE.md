@@ -11,15 +11,16 @@ Status: foundation (Task 001). Specification baseline: Master Product Specificat
 | Routing | Small in-repo hash router (`src/app/router.tsx`) | Hash URLs need no server rewrites and behave in a Capacitor WebView. Avoids a dependency for nine flat routes. |
 | Styling | Plain CSS with design tokens (`src/styles/`) | No runtime cost, no build plugin, easy light/dark theming. Revisit only if it becomes painful. |
 | Persistence | IndexedDB behind `StorageAdapter` (`src/storage/`) | Spec D6. Raw IndexedDB, no wrapper library. |
-| Android | Capacitor (not added yet) | Spec D1. Planned for the next milestone. |
+| Android | Capacitor 7 wrapping `dist/` (`android/`, `capacitor.config.ts`) | Spec D1. Debug APK built by `.github/workflows/android-debug-apk.yml`. Native-only code is isolated in `src/native/` and is a no-op in a browser. |
 
-Runtime dependencies: `react`, `react-dom` only.
+Runtime dependencies: `react`, `react-dom`, and the Capacitor packages `@capacitor/core`, `@capacitor/app`, `@capacitor/android` (`@capacitor/cli` is a dev dependency).
 
 ## Structure
 
 ```
 src/
-  app/          Shell: router, navigation config, top bar, bottom bar, sidebar, More sheet
+  app/          Shell: router, navigation config, back rule (backBehaviour.ts), top bar, bottom bar, sidebar, More sheet
+  native/       Capacitor-only behaviour (Android back, system bars). Inert in a browser
   components/   Shared UI: Icon, PageHeader, EmptyState
   domain/       Item envelope types (spec 11)
   pages/        One file per screen. Unbuilt modules use Placeholder
@@ -86,6 +87,16 @@ text or selection on dark surfaces. Gold takes that job there.
 `--gold-text` is 4.6:1 on offwhite but 4.2:1 on offwhite-2. Use it for icons and large text on
 cards; use it for small text only on the page background.
 
+Safe areas: components use `--safe-top/right/bottom/left` (defined in `tokens.css`), never `env(safe-area-inset-*)`
+directly. Each token is the larger of the web `env()` value and Capacitor's `--safe-area-inset-*` variable, so
+it works in browsers and in older Android WebViews that report `env()` as 0.
+
+## Android back behaviour (spec 5.4)
+
+`resolveBack(path)` in `src/app/backBehaviour.ts` is the rule: Dashboard exits; a screen below a module root
+goes to its parent; a module root (or unknown path) goes to the Dashboard. `src/native/androidBack.ts` applies
+it through `@capacitor/app`, first closing an open sheet, and replaces the history entry instead of pushing one.
+
 Rules baked into the shell: 44px minimum touch targets, safe-area insets, visible focus ring, reduced
 motion respected, no horizontal page scroll, offline-friendly (system fonts, no external requests).
 
@@ -98,6 +109,7 @@ transactions cannot span arbitrary async code. Settings are deliberately not par
 ## Known limitations
 
 - Not yet exercised: large attachments, large ZIPs, quota inside the Capacitor WebView (spec 12.4).
-- Android back-button handling is not wired up (needs the Capacitor App plugin).
+- Android back-button handling and system-bar styling are implemented but not yet verified on a device.
+- The Android project is hand-written to the Capacitor 7 template and has not yet been built.
 - No automated test runner yet.
 - Item identifiers (UUID, slug) are defined as types only; generation helpers come with the first workbook.

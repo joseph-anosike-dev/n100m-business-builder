@@ -11,7 +11,7 @@ import { isActive } from './paths';
 // A minimal hash router. Hash URLs (#/offers) need no server rewrites, so the
 // same build works on any static host and inside a Capacitor WebView.
 
-function currentPath(): string {
+export function currentPath(): string {
   const raw = window.location.hash.replace(/^#/, '').split('?')[0];
   if (!raw || raw === '/') return '/';
   const path = raw.startsWith('/') ? raw : `/${raw}`;
@@ -38,6 +38,11 @@ export function useRoute(): string {
 
 export function navigate(to: string): void {
   window.location.hash = to;
+}
+
+/** Like navigate, but swaps the current history entry instead of adding one. */
+export function replaceRoute(to: string): void {
+  window.location.replace(`#${to}`);
 }
 
 type LinkProps = { to: string; children: ReactNode } & Omit<

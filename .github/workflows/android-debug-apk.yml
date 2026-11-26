@@ -1,0 +1,62 @@
+name: Android debug APK
+
+# Builds a DEBUG APK (signed by Gradle with its automatic debug key) on every push to main and uploads it
+# as a workflow artifact. No release signing, no Play Store, no Android Studio.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # The Gradle wrapper is not committed, so the workflow installs the
+      # Gradle version the Android project was written for (Capacitor 7).
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Web production build
+        run: npx vite build
+
+      - name: Sync web build into the Android project
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: gradle assembleDebug --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: n100m-business-builder-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30

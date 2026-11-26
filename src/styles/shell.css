@@ -13,8 +13,8 @@
     'top'
     'main'
     'bottom';
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
 }
 
 .sidebar {
@@ -90,8 +90,8 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  min-height: calc(56px + env(safe-area-inset-top, 0px));
-  padding: env(safe-area-inset-top, 0px) var(--space-3) 0 var(--space-4);
+  min-height: calc(56px + var(--safe-top));
+  padding: var(--safe-top) var(--space-3) 0 var(--space-4);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-line);
 }
@@ -157,7 +157,7 @@
   grid-area: bottom;
   background: var(--color-surface);
   border-top: 1px solid var(--color-line);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: var(--safe-bottom);
 }
 
 .bottomnav__list {
@@ -243,7 +243,7 @@
 
 .sheet__inner {
   padding: var(--space-3) var(--space-4)
-    calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    calc(var(--space-4) + var(--safe-bottom));
 }
 
 .sheet__head {
@@ -318,8 +318,8 @@
     flex-direction: column;
     min-width: 0;
     overflow-y: auto;
-    padding: calc(var(--space-4) + env(safe-area-inset-top, 0px)) var(--space-3)
-      calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    padding: calc(var(--space-4) + var(--safe-top)) var(--space-3)
+      calc(var(--space-4) + var(--safe-bottom));
     background: var(--color-surface);
     border-right: 1px solid var(--color-line);
   }

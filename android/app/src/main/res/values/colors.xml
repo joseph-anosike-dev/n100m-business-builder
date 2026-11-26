@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Brand values only (see src/styles/tokens.css). -->
+<resources>
+    <color name="ic_launcher_background">#1A1A1A</color>
+    <color name="splash_background">#F7F4EF</color>
+</resources>

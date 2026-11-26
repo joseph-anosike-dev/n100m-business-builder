@@ -1,16 +1,18 @@
 # N100M Business Builder — Project State
 
 ## Current status
-Task 001 (application foundation) and Task 001.1 (official brand palette) are delivered. The responsive
-app shell, navigation, design tokens and storage layer exist, and the official brand palette is applied in
-light and dark themes. No business framework content or workbook functionality has been built.
+Task 001 (application foundation), Task 001.1 (official brand palette) and Task 002 (Capacitor and Android
+build integration) are delivered, **but Task 002 has never been built or run**: see "Verification status".
+The responsive app shell, navigation, design tokens and storage layer exist, the brand palette is applied in
+light and dark themes, and the repository now contains a Capacitor 7 Android project and a GitHub Actions
+workflow that builds a debug APK. No business framework content or workbook functionality has been built.
 
 ## Product
 A mobile-first, responsive web application inspired by Alex Hormozi's $100M business frameworks.
 
 ## Target platforms
 - Responsive web
-- Android APK using Capacitor (not yet added)
+- Android APK using Capacitor 7 (added in Task 002; first CI build still to be confirmed)
 - Desktop and laptop browsers
 
 ## Current specification
@@ -32,6 +34,9 @@ Master Product Specification v0.3.1.
   gold-text) are the only colours in the app. Declared once in `src/styles/tokens.css`; components use
   semantic `--color-*` tokens only. Mapping table in `docs/ARCHITECTURE.md`.
 - Mobile bottom bar: Dashboard, Offers, Leads, Models. Discovery is reached from the Dashboard card.
+- Android: Capacitor 7 (`@capacitor/core`, `@capacitor/android`, `@capacitor/app`, `@capacitor/cli`), app id
+  `com.n100m.businessbuilder` (a placeholder choice; changing it later means a new app identity on devices).
+  Debug APK only; no release signing. Web assets come from `dist/` (`webDir`).
 - Spec item D14 (mobile access to Roadmap, My Business, Library, Settings) is still open. Interim
   choice: a "More" button in the top app bar opens a sheet. Switching to a fifth "More" tab is a
   one-line change in `src/app/navigation.ts`.
@@ -60,6 +65,28 @@ Master Product Specification v0.3.1.
 - `index.html` theme-color meta tags updated to offwhite and black.
 - No layout, navigation, functionality or typography changes.
 
+## Completed in Task 002
+- Capacitor added to `package.json`; `capacitor.config.ts` (app id, name, `webDir: 'dist'`, SystemBars
+  `insetsHandling: 'css'`). `capacitor.config.ts` is included in `tsconfig.json`.
+- `android/` project written by hand to match the Capacitor 7 template (AGP 8.7.2, compileSdk/targetSdk 35,
+  minSdk 23, Java 21). It was NOT generated with `npx cap add android` (no network in the delivery
+  environment). `npx cap sync android` regenerates `capacitor.settings.gradle`, `app/capacitor.build.gradle`
+  and `capacitor-cordova-android-plugins/` and copies `dist/` into the project.
+- Placeholder launcher icons (gold naira on black) and a plain brand-coloured splash. Replace when real
+  artwork exists.
+- Vite: `emptyOutDir` and `sourcemap: false` added; `base: './'` was already correct for the WebView.
+- Android back (spec 5.4): `src/app/backBehaviour.ts` (pure rule) and `src/native/androidBack.ts`
+  (`@capacitor/app` listener). Order: close an open sheet, then up one level, then Dashboard, then exit from
+  the Dashboard. Back replaces the history entry rather than adding one. Inactive in a browser.
+- Safe areas: `--safe-top/right/bottom/left` tokens in `tokens.css` take the larger of `env(safe-area-inset-*)`
+  and Capacitor's `--safe-area-inset-*`; `shell.css` now uses them instead of `env()` directly.
+- System bars: `src/native/systemBars.ts` sets the status/navigation icon style from the effective app theme
+  (this resolves the old theme-color known issue on Android; the browser `theme-color` meta tags are unchanged).
+- `.github/workflows/android-debug-apk.yml`: on push to `main`: `npm ci`, `npm run typecheck`,
+  `npx vite build`, `npx cap sync android`, `gradle assembleDebug` (Gradle 8.11.1 via `setup-gradle`, no
+  wrapper), upload `app-debug.apk` as the artifact `n100m-business-builder-debug-apk`.
+- `.gitignore` extended for Android build output and generated Capacitor files.
+
 ## Verification status
 Run in the delivery environment (no network, so `npm install` could not run):
 - The source was bundled with esbuild and loaded in headless Chromium at 360, 414, 820 and 1280px.
@@ -75,18 +102,36 @@ in four modes (system light, system dark, app-forced light under an OS-dark sett
 an OS-light setting): 0 failures. The Task 001 layout/navigation/persistence checks were re-run: all pass.
 A scan of the compiled CSS found no colour outside the palette.
 
-NOT yet run: `npm install`, `npm run typecheck`, `npm run build` (the real Vite build), any Android or
-Capacitor build, any device test, any automated test suite. `package-lock.json` has not been generated.
+Task 002, in the same no-network environment:
+- Partial `tsc` run (strict, `noUnusedLocals`) over the new and changed TypeScript files using loose stand-in
+  type declarations for `react` and `@capacitor/*`: 0 errors. Not equivalent to the real typecheck.
+- `resolveBack` run against 6 paths (Dashboard, module root, nested, empty, unknown): all as specified.
+- The workflow YAML parses; every Android XML file is well-formed.
+
+NOT run, ever: `npm install`, `npm run typecheck`, `npm run build` (real toolchain), `npx cap sync android`,
+Gradle, the GitHub Actions workflow, any APK, any device or emulator test, any automated test suite.
+**`package-lock.json` is out of date**: the new Capacitor dependencies are in `package.json` but not in the
+lockfile, so `npm ci` (used by the workflow) fails until `npm install` is run and the lockfile committed.
+Nothing about the APK build should be treated as working until the workflow has run green once.
 
 ## Known issues and gaps
-- Android back-button behaviour (spec 5.4) is not implemented.
+- Back behaviour is implemented but untested on a device. Routes are flat today, so "up one level" has no
+  effect yet; it applies once module sub-screens exist.
+- The Android project was hand-written, not generated. Versions and file contents were written from knowledge
+  of the Capacitor 7 template and may need small corrections on the first real build.
+- No Gradle wrapper is committed (its binary jar could not be produced). Local builds need Gradle 8.11.1 or
+  `gradle wrapper --gradle-version 8.11.1` run once in `android/`.
+- The system-bar icon style names (DARK = light icons) follow Capacitor's convention but are unverified on a
+  device. Check icon legibility in both themes.
+- `SystemBars` `insetsHandling: 'css'` and the `--safe-area-inset-*` variables are unverified on a device or
+  on older WebViews.
+- App id `com.n100m.businessbuilder` and the placeholder icon are provisional.
 - No test runner configured.
 - Dashboard shows static placeholders; Discovery state is hard-coded to "not-started" until items exist.
 - Currency setting is not built (Settings has theme only).
 - D14 still needs a product decision.
-- The `theme-color` meta tags follow the operating system's light/dark setting, not the in-app theme
-  choice, so the Android status bar colour can differ from the app if the user overrides the theme.
-  Pre-existing behaviour; to be resolved with the Capacitor status-bar work in Task 002.
+- The `theme-color` meta tags still follow the operating system's light/dark setting in a browser. On Android the
+  system bar icon style now follows the in-app theme (Task 002), pending device confirmation.
 - Visual colour review was done in a desktop browser only; check the palette on a real Android device.
 
 ## Outstanding product items (from spec section 22)
@@ -94,15 +139,17 @@ Source materials; bundling permission; D14; roadmap structure (one item with sta
 fields); backup reminder wording.
 
 ## Next task
-**Task 002: verify the foundation locally and add the Capacitor Android wrapper.**
-1. Run `npm install`, `npm run typecheck` and `npm run build`; fix anything the real toolchain finds;
-   commit `package-lock.json`.
-2. Add Capacitor (`@capacitor/core`, `@capacitor/cli`, `@capacitor/android`, `@capacitor/app`) and
-   `capacitor.config.ts`; generate the Android project.
-3. Implement Android back behaviour per spec 5.4 using `@capacitor/app`.
-4. Confirm safe-area insets and the persistent-storage request inside the WebView.
-5. Add Vitest and a first test for `StorageAdapter` and the navigation config.
-6. Match the Android status-bar colour to the in-app theme (see known issues).
+**Task 003: make the foundation and Android build provably green, then add tests.**
+1. Locally run `npm install` and commit the updated `package-lock.json`. Run `npm run typecheck` and
+   `npm run build`; fix anything the real toolchain reports.
+2. Push to `main`, watch the "Android debug APK" workflow, and fix whatever the first real run finds
+   (expect small corrections in `android/`). Download the APK artifact.
+3. Install the APK on a real Android device (or emulator) and check: launch, theme switching, safe areas
+   and system bar icons in both themes, the More sheet, back from a module, back on the Dashboard exits,
+   persistent storage and the theme setting surviving an app restart.
+4. Commit a Gradle wrapper (`gradle wrapper --gradle-version 8.11.1` in `android/`) if wanted locally.
+5. Add Vitest with first tests for `resolveBack`, the navigation config and `StorageAdapter`.
+Do not begin workbook or content features until step 2 is green.
 
 ## Handover instructions
 The next developer must read `DEVELOPER_GUIDE.md`, this file and `docs/ARCHITECTURE.md` before making
