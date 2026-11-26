@@ -1,11 +1,14 @@
 # N100M Business Builder — Project State
 
 ## Current status
-Task 001 (application foundation), Task 001.1 (official brand palette) and Task 002 (Capacitor and Android
-build integration) are delivered, **but Task 002 has never been built or run**: see "Verification status".
+Task 001 (application foundation), Task 001.1 (official brand palette), Task 002 (Capacitor and Android
+build integration) and Task 003 (Vitest testing foundation) are delivered. The developer reports that
+`npm install`, `npm run typecheck` and `npm run build` succeed and that the debug APK was installed and tested
+on a physical phone with a satisfactory result (see "Verification status").
 The responsive app shell, navigation, design tokens and storage layer exist, the brand palette is applied in
 light and dark themes, and the repository now contains a Capacitor 7 Android project and a GitHub Actions
-workflow that builds a debug APK. No business framework content or workbook functionality has been built.
+workflow that builds a debug APK, and Vitest runs unit tests for the back-navigation rule. No business
+framework content or workbook functionality has been built.
 
 ## Product
 A mobile-first, responsive web application inspired by Alex Hormozi's $100M business frameworks.
@@ -87,6 +90,51 @@ Master Product Specification v0.3.1.
   wrapper), upload `app-debug.apk` as the artifact `n100m-business-builder-debug-apk`.
 - `.gitignore` extended for Android build output and generated Capacitor files.
 
+## Completed in Task 003
+- Vitest `^4.1.12` added as a dev dependency (resolved to 4.1.12) with the existing Vite 7.3.8. Vitest 5 was
+  deliberately not used: it requires Node 22.12+, while `package.json` allows Node >=20.19. Vitest 4 supports
+  Node 20 and Vite 7.
+- `vitest.config.ts` (new, separate from `vite.config.ts`, which is unchanged): `environment: 'node'`,
+  `include: ['src/**/*.test.ts']`. No DOM library was added. Also listed in `tsconfig.json` `include` so it is
+  type-checked.
+- npm scripts: `test` (`vitest run`, single run, used by CI) and `test:watch` (`vitest`).
+- `package-lock.json` regenerated: only 26 packages were added; no existing package changed version.
+- Workflow `.github/workflows/android-debug-apk.yml`: new "Unit tests" step (`npm test`) directly after
+  "TypeScript check" and before the web build and APK steps.
+- Production code is unchanged: no file under `src/` other than the new test files was touched.
+
+### Test files and what they cover (28 tests)
+`src/app/backBehaviour.test.ts` (22 tests), testing the real `resolveBack(path)`:
+- Dashboard: `"/"` and `""` give `{ kind: 'exit' }`.
+- Module roots: every non-Dashboard entry in the real `MODULES` config resolves to `/`; the Dashboard is the
+  only module whose path exits.
+- Sub-screens: `/offers/some-offer` goes to `/offers`; deeper paths go up exactly one level; ids containing
+  dashes, dots and digits are preserved.
+- Unknown paths go to `/`. Trailing slashes are ignored. Odd inputs (`//`, `/a//b`, unicode, 500 slashes,
+  a 2000-segment path) never throw and always return `exit` or a `navigate` target starting with `/`.
+- Properties: deterministic; never navigates to the path it was given; from a four-level path, repeated
+  back reaches `/` and then exits in at most depth + 1 presses, through the expected sequence of paths.
+
+`src/native/androidBack.test.ts` (6 tests), testing the real `installAndroidBack` with only the platform check
+(`./platform`) and `@capacitor/app` replaced by `vi.mock`:
+- Browser: registers no `backButton` listener; returns a cleanup function that is safe to call twice.
+- Native (positive control, so the browser tests can fail): registers exactly one `backButton` listener;
+  cleanup removes it; cleanup before registration settles still removes it; a rejected `addListener` does
+  not throw.
+
+Mutation checks run during the task (each reverted afterwards; sources verified identical to the originals):
+removing the native guard in `installAndroidBack` fails 1 test; changing the nested-path rule in `resolveBack`
+fails 5; making the Dashboard navigate instead of exit fails 4.
+
+### Not covered, by design (outside `resolveBack`)
+`resolveBack(path)` is a pure function of the path only. These parts of the back rule live in
+`src/native/androidBack.ts` and are not unit tested:
+- Closing an open sheet first (`closeOpenDialog` / `handleBack`): they are not exported and depend on
+  `document.querySelectorAll('dialog[open]')`, `window.location` and `App.exitApp`. Testing them needs a DOM
+  environment (`jsdom`, a new dependency) and/or exporting internals, which this task excluded. Verified only
+  by the manual device test.
+- The `exit` action calling `App.exitApp()` and the `navigate` action calling `replaceRoute()`.
+
 ## Verification status
 Run in the delivery environment (no network, so `npm install` could not run):
 - The source was bundled with esbuild and loaded in headless Chromium at 360, 414, 820 and 1280px.
@@ -108,15 +156,29 @@ Task 002, in the same no-network environment:
 - `resolveBack` run against 6 paths (Dashboard, module root, nested, empty, unknown): all as specified.
 - The workflow YAML parses; every Android XML file is well-formed.
 
-NOT run, ever: `npm install`, `npm run typecheck`, `npm run build` (real toolchain), `npx cap sync android`,
-Gradle, the GitHub Actions workflow, any APK, any device or emulator test, any automated test suite.
-**`package-lock.json` is out of date**: the new Capacitor dependencies are in `package.json` but not in the
-lockfile, so `npm ci` (used by the workflow) fails until `npm install` is run and the lockfile committed.
-Nothing about the APK build should be treated as working until the workflow has run green once.
+Reported by the developer before Task 003 (not re-run by the assistant): `npm install`, `npm run typecheck` and
+`npm run build` succeeded; the debug APK was installed and tested on a physical Android phone and the result
+was judged satisfactory. The detailed device checklist from the old Task 003 plan (system bar icons, safe areas,
+back from a module, back on the Dashboard exits, persistence across restart) was not itemised in the report, so
+treat any item not individually confirmed as still to confirm.
+
+Task 003, run by the assistant in a Linux sandbox with Node 22.23.5 and npm 10.9.9 (the lockfile was written
+with npm 11 because npm 10.9.9 crashed resolving Vitest's peer set; `npm ci` under npm 10.9.9 accepts it):
+- `npm ci` from the new lockfile (after deleting `node_modules`): exit 0, 0 vulnerabilities.
+- `npm run typecheck`: exit 0.
+- `npm run build`: exit 0 (`tsc --noEmit` then `vite build`, 63 modules, `dist/` produced; no test code or
+  Vitest in the bundle).
+- `npm test`: exit 0, 2 test files, 28 tests, all passed (about 0.5 s).
+
+Outstanding verification for Task 003:
+- The GitHub Actions workflow with the new "Unit tests" step has not run yet; confirm it is green on the next push
+  to `main`.
+- Not run on Node 20 (the project's stated minimum); only Node 22 was available. CI uses Node 22.
+- The sheet-closing behaviour of Android back is still verified by hand only (see above).
 
 ## Known issues and gaps
-- Back behaviour is implemented but untested on a device. Routes are flat today, so "up one level" has no
-  effect yet; it applies once module sub-screens exist.
+- Routes are flat today, so "up one level" has no effect yet; it applies once module sub-screens exist. The
+  rule itself is unit tested; the "up one level" case has only been exercised through those tests.
 - The Android project was hand-written, not generated. Versions and file contents were written from knowledge
   of the Capacitor 7 template and may need small corrections on the first real build.
 - No Gradle wrapper is committed (its binary jar could not be produced). Local builds need Gradle 8.11.1 or
@@ -126,7 +188,9 @@ Nothing about the APK build should be treated as working until the workflow has 
 - `SystemBars` `insetsHandling: 'css'` and the `--safe-area-inset-*` variables are unverified on a device or
   on older WebViews.
 - App id `com.n100m.businessbuilder` and the placeholder icon are provisional.
-- No test runner configured.
+- Test coverage is limited to `resolveBack` and `installAndroidBack`. No tests yet for the navigation config
+  (`navigation.ts`, `paths.ts`, `moduleForPath`), the router, `StorageAdapter`, or the DOM-dependent parts of
+  `androidBack.ts`.
 - Dashboard shows static placeholders; Discovery state is hard-coded to "not-started" until items exist.
 - Currency setting is not built (Settings has theme only).
 - D14 still needs a product decision.
@@ -139,17 +203,12 @@ Source materials; bundling permission; D14; roadmap structure (one item with sta
 fields); backup reminder wording.
 
 ## Next task
-**Task 003: make the foundation and Android build provably green, then add tests.**
-1. Locally run `npm install` and commit the updated `package-lock.json`. Run `npm run typecheck` and
-   `npm run build`; fix anything the real toolchain reports.
-2. Push to `main`, watch the "Android debug APK" workflow, and fix whatever the first real run finds
-   (expect small corrections in `android/`). Download the APK artifact.
-3. Install the APK on a real Android device (or emulator) and check: launch, theme switching, safe areas
-   and system bar icons in both themes, the More sheet, back from a module, back on the Dashboard exits,
-   persistent storage and the theme setting surviving an app restart.
-4. Commit a Gradle wrapper (`gradle wrapper --gradle-version 8.11.1` in `android/`) if wanted locally.
-5. Add Vitest with first tests for `resolveBack`, the navigation config and `StorageAdapter`.
-Do not begin workbook or content features until step 2 is green.
+**Task 004: extend the test foundation.** Add Vitest tests for the navigation config (`MODULES`, `MOBILE_BAR`,
+`MORE_MENU`, `moduleForPath`, `isActive`) and for `StorageAdapter` (the IndexedDB implementation will need a
+test double or an in-memory implementation of the interface; decide that before starting). Confirm the
+"Android debug APK" workflow is green with the new "Unit tests" step first. If sheet-closing back behaviour is to
+be automated, decide first whether adding `jsdom` and exporting `handleBack` is acceptable.
+Do not begin workbook or content features until that is settled.
 
 ## Handover instructions
 The next developer must read `DEVELOPER_GUIDE.md`, this file and `docs/ARCHITECTURE.md` before making

@@ -111,5 +111,5 @@ transactions cannot span arbitrary async code. Settings are deliberately not par
 - Not yet exercised: large attachments, large ZIPs, quota inside the Capacitor WebView (spec 12.4).
 - Android back-button handling and system-bar styling are implemented but not yet verified on a device.
 - The Android project is hand-written to the Capacitor 7 template and has not yet been built.
-- No automated test runner yet.
+- Automated tests exist only for the back-navigation rule (Vitest, `npm test`); coverage is otherwise minimal.
 - Item identifiers (UUID, slug) are defined as types only; generation helpers come with the first workbook.

@@ -43,6 +43,9 @@ jobs:
       - name: TypeScript check
         run: npm run typecheck
 
+      - name: Unit tests
+        run: npm test
+
       - name: Web production build
         run: npx vite build
 

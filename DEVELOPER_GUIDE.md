@@ -33,6 +33,14 @@ Before stopping:
 - Preserve user data and portability.
 - Follow the approved Master Product Specification.
 
+## Testing
+- Tests use Vitest and live next to the code they test as `*.test.ts` (included from `src/`).
+- Run `npm test` (single run) or `npm run test:watch`. Run `npm run typecheck`, `npm run build` and `npm test`
+  before handing over.
+- Test the real implementation. Do not change production behaviour to make a test pass, and do not report tests
+  as passing unless they were actually run.
+- Vitest 5 needs Node 22.12+; the project supports Node >=20.19, so stay on Vitest 4 until the minimum Node
+  version is raised.
 
 ## Code Delivery and File Transfer
 
