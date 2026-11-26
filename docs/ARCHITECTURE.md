@@ -105,11 +105,13 @@ motion respected, no horizontal page scroll, offline-friendly (system fonts, no 
 `StorageAdapter` covers get/put/delete, query by type and status, attachments, settings, atomic `batch`,
 `exportAll` and `importAll` (spec 12.1). `batch` stands in for general transactions, because IndexedDB
 transactions cannot span arbitrary async code. Settings are deliberately not part of `exportAll`.
+`batch` is all-or-nothing: if any operation is invalid or fails, nothing in the batch is written. Every storage
+failure rejects with a `StorageError` (an `Error`; the original IndexedDB error is its `cause`).
 
 ## Known limitations
 
 - Not yet exercised: large attachments, large ZIPs, quota inside the Capacitor WebView (spec 12.4).
 - Android back-button handling and system-bar styling are implemented but not yet verified on a device.
 - The Android project is hand-written to the Capacitor 7 template and has not yet been built.
-- Automated tests exist only for the back-navigation rule (Vitest, `npm test`); coverage is otherwise minimal.
+- Automated tests (Vitest, `npm test`) cover back navigation, the navigation config and the storage layer (against fake-indexeddb). UI components, the router and theme settings are not yet tested. See `PROJECT_STATE.md` for remaining storage limitations.
 - Item identifiers (UUID, slug) are defined as types only; generation helpers come with the first workbook.

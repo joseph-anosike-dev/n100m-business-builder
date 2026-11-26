@@ -37,6 +37,10 @@ Before stopping:
 - Tests use Vitest and live next to the code they test as `*.test.ts` (included from `src/`).
 - Run `npm test` (single run) or `npm run test:watch`. Run `npm run typecheck`, `npm run build` and `npm test`
   before handing over.
+- Storage tests run `IndexedDbStorage` against `fake-indexeddb`. Give every test a new `IDBFactory` so tests
+  never share data. Never point a test at a real browser database.
+- A test for a known, unfixed defect uses `it.fails` with a comment naming where the gap is recorded; change it
+  to `it` when the defect is fixed.
 - Test the real implementation. Do not change production behaviour to make a test pass, and do not report tests
   as passing unless they were actually run.
 - Vitest 5 needs Node 22.12+; the project supports Node >=20.19, so stay on Vitest 4 until the minimum Node

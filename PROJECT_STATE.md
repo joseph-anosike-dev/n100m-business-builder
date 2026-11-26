@@ -2,12 +2,13 @@
 
 ## Current status
 Task 001 (application foundation), Task 001.1 (official brand palette), Task 002 (Capacitor and Android
-build integration) and Task 003 (Vitest testing foundation) are delivered. The developer reports that
+build integration), Task 003 (Vitest testing foundation), Task 004 (navigation and storage tests) and
+Task 004.1 (storage integrity and error fixes) are delivered. The developer reports that
 `npm install`, `npm run typecheck` and `npm run build` succeed and that the debug APK was installed and tested
 on a physical phone with a satisfactory result (see "Verification status").
 The responsive app shell, navigation, design tokens and storage layer exist, the brand palette is applied in
 light and dark themes, and the repository now contains a Capacitor 7 Android project and a GitHub Actions
-workflow that builds a debug APK, and Vitest runs unit tests for the back-navigation rule. No business
+workflow that builds a debug APK, and Vitest runs 144 tests covering back navigation, the navigation configuration and the storage layer. No business
 framework content or workbook functionality has been built.
 
 ## Product
@@ -135,6 +136,101 @@ fails 5; making the Dashboard navigate instead of exit fails 4.
   by the manual device test.
 - The `exit` action calling `App.exitApp()` and the `navigate` action calling `replaceRoute()`.
 
+## Completed in Task 004
+Tests only. No file under `src/` other than new `*.test.ts` files was changed, and the workflow is unchanged.
+- New dev dependency `fake-indexeddb` `^6.2.8` (in-memory IndexedDB, no dependencies of its own, Node >=18).
+  Chosen because writing a hand-made IndexedDB fake would be less reliable. `package-lock.json` gained only that
+  package; no existing package changed. The lockfile was again written with npm 11 and `npm ci` under
+  npm 10.9.9 accepts it.
+- Each storage test builds a brand-new `IDBFactory` and a new `IndexedDbStorage`, then deletes the database
+  afterwards, so tests are independent and never touch a real browser database.
+
+### New test files (100 new tests; Task 003's 28 are unchanged)
+`src/app/navigation.test.ts` (47): the real `MODULES`, `MOBILE_BAR`, `MORE_MENU`, `MORE_IN_BAR`, `getModule`,
+`isOffBar`, `moduleForPath`.
+- The nine required modules exist in spec order; module ids, paths, labels and short labels are unique.
+- Every path is `/` or a single lower-case segment; label, short label, description and icon are non-empty;
+  every module except Dashboard and Settings has placeholder copy.
+- Dashboard is first and the only module at `/`.
+- Mobile bar is exactly Dashboard, Offers, Leads, Models in that order, with no "More" entry (D14 option 2).
+- More menu is Roadmap, My Business, Library, Settings, with no duplicates and nothing from the bar.
+- Discovery is a module but is in neither the bar nor the More menu, and is the only module they do not cover;
+  every other module is in exactly one of them.
+- `isOffBar`, `getModule` (throws for unknown ids) and `moduleForPath` (sub-screens, unknown paths, no
+  name-prefix false matches).
+
+`src/app/paths.test.ts` (6): `isActive` (root matches only itself, sub-paths, `/` boundary).
+
+`src/storage/indexeddb.test.ts` (41): the real `IndexedDbStorage` against fake-indexeddb.
+- Empty store: all reads return undefined or empty; deleting missing records does not throw; empty export.
+- Items: round trip of nested fields, Markdown, unicode and optional fields; upsert; delete; stored data is
+  isolated from caller objects; slug unique (a conflicting save rejects and leaves the original), and a deleted
+  item's slug can be reused.
+- `queryItems` by type, status, both, none, no match, and after updates and deletes.
+- Attachments: Blob content and metadata round trip, all 256 byte values preserved, replace, metadata-only
+  listing, owner filter, delete.
+- Settings: values of several types (including `0`, `false`, `null`), overwrite, excluded from `exportAll`
+  and unaffected by `importAll`.
+- `batch`: empty, all operation kinds, order, and atomic rollback on a constraint failure (deletes and adds in
+  the same batch are all undone).
+- Persistence: a second `IndexedDbStorage` on the same database sees the data.
+- `exportAll`/`importAll`: full export, restore into an empty database, additive (never deletes), upsert by id,
+  empty snapshot, importing twice, and all-or-nothing on a slug conflict.
+
+`src/storage/index.test.ts` (6): `getStorage` returns one instance; `requestPersistentStorage` with no
+storage API, no navigator, already persistent, granted or refused, and a throwing platform call.
+
+### Findings from Task 004 (both fixed in Task 004.1, see below)
+1. `batch` was not atomic for malformed input: an earlier operation in the same batch was still committed.
+2. Constraint failures rejected with `null` instead of an `Error`.
+
+## Completed in Task 004.1
+Changes to production code are confined to `src/storage/indexeddb.ts`. The public `StorageAdapter` interface
+(`src/storage/types.ts`) is unchanged. No dependency changes: `package.json` and `package-lock.json` are
+identical to Task 004's.
+
+### Defect 1: partial writes from a failed batch (fixed)
+Cause: `batch()` queued requests in a loop. If IndexedDB threw while queuing one (an item without an `id`,
+data that cannot be cloned), the exception left the function but the transaction stayed open and committed the
+requests already queued. A constraint failure (duplicate slug) was already atomic because IndexedDB aborts the
+transaction itself.
+Fix, in two independent layers:
+- `validateOps` checks the whole batch before a transaction is opened: it must be a list; every operation must
+  be a known type; puts need an object with a non-empty string `id`; deletes need a non-empty string id. A bad
+  operation is reported with its position and nothing is started.
+- A new private `write()` runs every readwrite operation (`batch`, `putSetting`). It attaches its completion
+  listener first, and if anything throws while queuing requests it calls `tx.abort()` and waits for the abort to
+  finish before rejecting. This is a real transaction abort, not compensating writes, and it covers failures
+  validation cannot recognise (for example `DataCloneError`).
+Behaviour change to be aware of: an item or attachment whose `id` is not a non-empty string is now rejected
+up front. `Item.id` is typed as a string, so correctly typed code is unaffected.
+
+### Defect 2: constraint failures rejected with `null` (fixed)
+Cause: `finished()` rejected from the transaction's `error` event, where `tx.error` is still `null`; it is only
+set when the `abort` event fires.
+Fix: `finished()` now rejects only on `abort`, where the error is set. Every public method on
+`IndexedDbStorage` runs through `run()`, so every failure (read, write, open, validation, import of a malformed
+snapshot) rejects with a new exported `StorageError extends Error` (`name` is `StorageError`). `message` is a
+plain sentence such as "Could not save changes: it conflicts with a record that is already stored (for example a
+duplicate slug)." and never contains stored data. The original IndexedDB error is kept as `cause`.
+`requestPersistentStorage` is unchanged (it already returns `false` on failure).
+
+### Tests changed or added (17 added, 1 replaced: net +16, 128 to 144)
+All in `src/storage/indexeddb.test.ts`, each on a fresh fake IndexedDB. The `it.fails` test is gone: it was
+replaced by the first atomicity test below (a normal test with stronger assertions). No other Task 003 or
+Task 004 assertion was weakened or removed.
+- Atomicity (8): malformed put without an id; six kinds of malformed operation (missing id on an item, an
+  attachment or a delete, empty id, unknown type, null) each placed first, in the middle and last in a batch
+  of otherwise valid puts and deletes, with the existing data checked unchanged; data that cannot be stored
+  (`DataCloneError`, which only the abort guard can catch); duplicate slug; `putItem` and `importAll`; storage
+  keeps working after failures; a valid batch still commits; a failed `putSetting` leaves the old value.
+- Errors (9): duplicate slug rejects with a `StorageError` that is an `Error`, not `null`, with a readable
+  message; original `ConstraintError` kept as `cause`; messages never contain a stored slug, title or body;
+  malformed operation message names its position; unstorable data has a `DataCloneError` cause; every read and
+  write method rejects with a `StorageError` for bad input; an unopenable database (stored version newer than
+  the code) rejects with a `StorageError` whose cause is `VersionError`; a rejected call stores nothing; a
+  successful call still resolves normally.
+
 ## Verification status
 Run in the delivery environment (no network, so `npm install` could not run):
 - The source was bundled with esbuild and loaded in headless Chromium at 360, 414, 820 and 1280px.
@@ -170,11 +266,41 @@ with npm 11 because npm 10.9.9 crashed resolving Vitest's peer set; `npm ci` und
   Vitest in the bundle).
 - `npm test`: exit 0, 2 test files, 28 tests, all passed (about 0.5 s).
 
+Task 004, same sandbox (Node 22.23.5, npm 10.9.9), after deleting `node_modules` and running `npm ci`:
+- `npm run typecheck`: exit 0.
+- `npm run build`: exit 0 (63 modules; no test code or fake-indexeddb in `dist/`).
+- `npm test`: exit 0, 6 test files, 127 passed and 1 expected fail (the `it.fails` test, since converted in
+  Task 004.1), 128 total.
+- Stability: 3 runs with `--sequence.shuffle` and 3 plain runs gave identical results.
+- Mutation checks, each reverted afterwards (sources verified identical): dropping the unique slug index failed
+  3 tests; ignoring status in a type+status query failed 2; `listAttachments` returning file data failed 1;
+  swapping a bottom-bar entry failed 4; adding Discovery to the More menu failed 3; a trial fix for finding 1
+  flipped the `it.fails` test as intended.
+
+Task 004.1, same sandbox (Node 22.23.5, npm 10.9.9), after deleting `node_modules` and running `npm ci`:
+- `npm ci`: 188 packages added, 0 vulnerabilities.
+- `npm run typecheck`: exit 0.
+- `npm run build`: exit 0 (63 modules). The production JS grew by about 2 kB (250.69 to 252.77 kB, 78.65 to
+  79.37 kB gzip) from the validation and error code. No test code or fake-indexeddb in `dist/`.
+- `npm test`: exit 0, 6 test files, **144 passed (144)**, no expected-fail tests, no unhandled errors
+  (128 earlier tests plus 16 new; `it.fails` converted).
+- Stability: 20 plain runs and 10 runs with `--sequence.shuffle`, all 144 passed with exit 0 and no unhandled
+  errors. (An earlier loop of mine mis-counted these because of colour codes in the output; it was rerun
+  correctly.)
+- Mutation checks, each reverted afterwards (source verified identical): removing the explicit `tx.abort()` fails
+  the unstorable-data test; removing up-front validation fails 2; restoring the old reject-on-`error` handler
+  fails 2; removing the error wrapping in `run()` fails 1; dropping `cause` fails 3.
+- The only application caller of storage, `src/settings/theme.tsx`, uses a generic `.catch`, so the new error
+  type does not change its behaviour.
+
 Outstanding verification for Task 003:
 - The GitHub Actions workflow with the new "Unit tests" step has not run yet; confirm it is green on the next push
   to `main`.
-- Not run on Node 20 (the project's stated minimum); only Node 22 was available. CI uses Node 22.
+- Not run on Node 20 (the project's stated minimum); only Node 22 was available. CI uses Node 22. (Tests
+  rely on `Blob`, `structuredClone` and `TextEncoder`, which Node 20 provides.)
 - The sheet-closing behaviour of Android back is still verified by hand only (see above).
+- The GitHub Actions run with the Task 003 "Unit tests" step was to be confirmed; the Task 004 tests run in the
+  same step with no workflow change.
 
 ## Known issues and gaps
 - Routes are flat today, so "up one level" has no effect yet; it applies once module sub-screens exist. The
@@ -188,9 +314,26 @@ Outstanding verification for Task 003:
 - `SystemBars` `insetsHandling: 'css'` and the `--safe-area-inset-*` variables are unverified on a device or
   on older WebViews.
 - App id `com.n100m.businessbuilder` and the placeholder icon are provisional.
-- Test coverage is limited to `resolveBack` and `installAndroidBack`. No tests yet for the navigation config
-  (`navigation.ts`, `paths.ts`, `moduleForPath`), the router, `StorageAdapter`, or the DOM-dependent parts of
-  `androidBack.ts`.
+- Tests exist for back navigation, the navigation config and paths, and the IndexedDB storage layer (see Task
+  003 and 004). Not covered: React components and screens, `routes.tsx`, the router (`router.tsx`), theme
+  settings (`src/settings/`), the DOM-dependent parts of `androidBack.ts`, and `src/domain/`
+  (types only). Storage is tested against fake-indexeddb, not a real browser or the Android WebView.
+- Navigation tests cover the configuration only. Spec 5.3's statement that Discovery is "reached from the
+  Dashboard card" is not in the configuration, so the tests check Discovery's absence from the bar and More
+  menu; they do not check that the Dashboard card links to it (it does: `DiscoveryCard.tsx` links to
+  `/discovery`).
+- Storage limitations that remain (Task 004.1 did not change them):
+  - Validation only checks structure and non-empty string ids. It does not check `slug`, `type`, `status`, dates
+    or field shapes. In particular an item with no `slug` is accepted and is not covered by the unique-slug
+    check (IndexedDB does not index a record that lacks the key; confirmed with a one-off test). Whether the
+    adapter or a layer above should reject such items is an open decision, and it matters for `importAll`
+    because imports will carry data from outside the app.
+  - Atomicity and error behaviour are verified against fake-indexeddb only, not a real browser or the Android
+    WebView. The behaviour relied on (explicit `abort()`, `tx.error` set on `abort`) is standard IndexedDB.
+  - A `StorageError`'s `cause` is the raw IndexedDB error. Its message can be more detailed than ours, so
+    callers should not show or log `cause` to users without thought.
+  - Error messages are English only and plain text.
+  - An aborted or failed database open is not retried automatically beyond the next call opening it again.
 - Dashboard shows static placeholders; Discovery state is hard-coded to "not-started" until items exist.
 - Currency setting is not built (Settings has theme only).
 - D14 still needs a product decision.
@@ -203,12 +346,14 @@ Source materials; bundling permission; D14; roadmap structure (one item with sta
 fields); backup reminder wording.
 
 ## Next task
-**Task 004: extend the test foundation.** Add Vitest tests for the navigation config (`MODULES`, `MOBILE_BAR`,
-`MORE_MENU`, `moduleForPath`, `isActive`) and for `StorageAdapter` (the IndexedDB implementation will need a
-test double or an in-memory implementation of the interface; decide that before starting). Confirm the
-"Android debug APK" workflow is green with the new "Unit tests" step first. If sheet-closing back behaviour is to
-be automated, decide first whether adding `jsdom` and exporting `handleBack` is acceptable.
-Do not begin workbook or content features until that is settled.
+**Task 005: confirm the build, decide storage input rules, then start the first workbook.**
+1. Commit and push Task 004.1 and confirm the "Android debug APK" workflow is green with the "Unit tests" step
+   (it has not yet run in CI for any task).
+2. Decide, and if approved implement with tests, what `putItem` and `importAll` must reject beyond a missing
+   id: a missing or empty `slug`, an unknown `type` or `status`, non-string fields. This closes the
+   "item without a slug bypasses uniqueness" gap before imports exist.
+3. Optional small tests first: `src/settings/theme.tsx` (uses storage) and the router's `currentPath`.
+4. Then begin the first workbook or content feature.
 
 ## Handover instructions
 The next developer must read `DEVELOPER_GUIDE.md`, this file and `docs/ARCHITECTURE.md` before making
