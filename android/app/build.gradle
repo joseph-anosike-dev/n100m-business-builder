@@ -1,20 +1,5 @@
 apply plugin: 'com.android.application'
 
-// ---------------------------------------------------------------------------------------------
-// Persistent DEBUG signing (Task 007). Debug APKs are signed with an explicit keystore that is
-// supplied through environment variables, never with the Android Gradle Plugin's implicit
-// ~/.android/debug.keystore (which is a different random key on every fresh CI runner, and is the
-// cause of "App not installed as package conflicts with an existing package").
-//   N100M_KEYSTORE_PATH      absolute path of the keystore file
-//   N100M_KEYSTORE_PASSWORD  keystore password
-//   N100M_KEY_ALIAS          key alias inside the keystore
-//   N100M_KEY_PASSWORD       password of that key
-// If any is missing the debug build FAILS (see verifyN100mDebugSigning below). It never falls back
-// to another key. Release signing is separate and is not configured here (see buildTypes.release).
-// ---------------------------------------------------------------------------------------------
-def n100mEnvNames = ['N100M_KEYSTORE_PATH', 'N100M_KEYSTORE_PASSWORD', 'N100M_KEY_ALIAS', 'N100M_KEY_PASSWORD']
-def n100mEnv = { String name -> System.getenv(name) ?: '' }
-
 android {
     namespace "com.n100m.businessbuilder"
     compileSdk rootProject.ext.compileSdkVersion
@@ -29,56 +14,15 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    signingConfigs {
-        // Explicit, persistent DEBUG key. Values come from the environment only; nothing is stored in Git.
-        // Missing values are caught with a clear message by verifyN100mDebugSigning before signing starts.
-        n100mDebug {
-            if (n100mEnv('N100M_KEYSTORE_PATH')) {
-                storeFile file(n100mEnv('N100M_KEYSTORE_PATH'))
-            }
-            storePassword n100mEnv('N100M_KEYSTORE_PASSWORD')
-            keyAlias n100mEnv('N100M_KEY_ALIAS')
-            keyPassword n100mEnv('N100M_KEY_PASSWORD')
-        }
-    }
     buildTypes {
-        debug {
-            // Explicit on purpose: do not rely on the implicit AGP debug signing configuration.
-            signingConfig signingConfigs.n100mDebug
-        }
-        // Release is intentionally left unsigned and does NOT use the debug key above. A future
+        // Debug uses the Android Gradle Plugin's standard, automatically managed debug signing
+        // (~/.android/debug.keystore, alias androiddebugkey). No signingConfig is set on purpose.
+        // Release is intentionally left unsigned and does NOT use the debug key. A future
         // production key must get its own signingConfig and its own secrets (see PROJECT_STATE.md).
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
-    }
-}
-
-// Fails the debug build early, with a clear message, when the signing inputs are not all available.
-// Hooked in front of every debug task that would otherwise sign with a missing or wrong key.
-// It never prints secret values.
-tasks.register('verifyN100mDebugSigning') {
-    group = 'verification'
-    description = 'Fails unless the N100M_* debug signing environment variables and keystore file are available.'
-    doLast {
-        def missing = n100mEnvNames.findAll { n100mEnv(it).isEmpty() }
-        if (!missing.isEmpty()) {
-            throw new GradleException('N100M debug signing is not configured. Missing environment variable(s): ' +
-                missing.join(', ') + '. Debug APKs must be signed with the persistent N100M debug key; ' +
-                'see PROJECT_STATE.md (Task 007) for the setup. No other key is used.')
-        }
-        def keystore = file(n100mEnv('N100M_KEYSTORE_PATH'))
-        if (!keystore.isFile() || keystore.length() == 0) {
-            throw new GradleException('N100M debug signing keystore not found or empty at N100M_KEYSTORE_PATH (' +
-                keystore.path + '). No other key is used.')
-        }
-    }
-}
-
-tasks.configureEach { task ->
-    if (task.name in ['preDebugBuild', 'validateSigningDebug', 'packageDebug']) {
-        task.dependsOn('verifyN100mDebugSigning')
     }
 }
 

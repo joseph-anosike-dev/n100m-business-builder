@@ -4,7 +4,7 @@
 Task 001 (application foundation), Task 001.1 (official brand palette), Task 002 (Capacitor and Android
 build integration), Task 003 (Vitest testing foundation), Task 004 (navigation and storage tests) and
 Task 004.1 (storage integrity and error fixes), Task 005 / 005.1 (workbook engine and data safety),
-Task 006 (Business Self-Assessment workbook) and Task 007 (explicit persistent Android debug signing) are delivered.
+Task 006 (Business Self-Assessment workbook) and Task 007 (explicit persistent Android debug signing, since reset to standard Gradle debug signing: see "Task 007 Reset") are delivered.
 The developer reports that
 `npm install`, `npm run typecheck` and `npm run build` succeed and that the debug APK was installed and tested
 on a physical phone with a satisfactory result (see "Verification status").
@@ -42,7 +42,7 @@ Master Product Specification v0.3.1.
 - Mobile bottom bar: Dashboard, Offers, Leads, Models. Discovery is reached from the Dashboard card.
 - Android: Capacitor 7 (`@capacitor/core`, `@capacitor/android`, `@capacitor/app`, `@capacitor/cli`), app id
   `com.n100m.businessbuilder` (a placeholder choice; changing it later means a new app identity on devices).
-  Debug APK only; explicit persistent debug signing key supplied by repository secrets (Task 007, replaces Task 004.2); no release signing. Web assets come from `dist/` (`webDir`).
+  Debug APK only, signed with the Android Gradle Plugin's standard automatically managed debug keystore (Task 007 Reset; no custom keystore, no repository secrets); no release signing. Web assets come from `dist/` (`webDir`).
 - Spec item D14 (mobile access to Roadmap, My Business, Library, Settings) is still open. Interim
   choice: a "More" button in the top app bar opens a sheet. Switching to a fifth "More" tab is a
   one-line change in `src/app/navigation.ts`.
@@ -234,7 +234,7 @@ Task 004 assertion was weakened or removed.
   successful call still resolves normally.
 
 ## Completed in Task 004.2 (persistent debug signing)
-**Superseded by Task 007.** The `DEBUG_KEYSTORE_BASE64` secret and the `~/.android/debug.keystore` approach below are no longer used. Kept as history.
+**Superseded by Task 007, which was itself reset (see "Task 007 Reset").** The `DEBUG_KEYSTORE_BASE64` secret and the `~/.android/debug.keystore` approach below are no longer used. Kept as history.
 - `.github/workflows/android-debug-apk.yml`: new step "Restore persistent debug keystore" runs before
   `gradle assembleDebug`. It decodes the repository secret `DEBUG_KEYSTORE_BASE64` to
   `~/.android/debug.keystore` (the Android Gradle Plugin's standard debug keystore path) and checks that it
@@ -282,28 +282,17 @@ Task 004 assertion was weakened or removed.
 - **Verification caveat:** this sandbox had no network, so `npm ci` could not complete and the real `npm run typecheck`, `npm run build` and `npm test` (Vitest) were NOT run. What was run: the 19 new tests plus the existing `answers`, `definitionChange`, `saver`, `render` tests and 8 of 11 `responseStore` and 7 of 8 `validateDefinition` tests passed through a small stand-in test runner (esbuild + a hand-written `describe/it/expect`). The remaining existing tests failed only because the stand-in lacks `toThrow`/`rejects` matchers; `closeSafety.test.ts` was not run (needs `vi`). TypeScript was checked with a global `tsc` and stub declarations for `react`, `react-dom` and `vitest`: no errors in the new or changed files. Run `npm run typecheck`, `npm test` and `npm run build` before treating this as passing.
 - Not verified: layout and use of the workbook in a real browser or on Android (long multi-select lists on a phone, the section step list with the longer titles), and the wording with real users.
 
-## Completed in Task 007 (explicit persistent debug signing)
-**Why:** installing successive CI APKs failed with "App not installed as package conflicts with an existing package". That message means the new APK is signed with a different key from the installed one. Relying on the Android Gradle Plugin's implicit debug key (`~/.android/debug.keystore`) is fragile: any build where that file is not exactly the same key produces an APK that cannot update the installed app.
-- `android/app/build.gradle`: new explicit signing config `n100mDebug`, read only from the environment variables `N100M_KEYSTORE_PATH`, `N100M_KEYSTORE_PASSWORD`, `N100M_KEY_ALIAS`, `N100M_KEY_PASSWORD`, and assigned explicitly to the `debug` build type. New task `verifyN100mDebugSigning` runs before `preDebugBuild`, `validateSigningDebug` and `packageDebug`: the debug build fails with a clear message if any variable is missing or the keystore file is missing or empty. There is no fallback key, locally or in CI. This also means **a local `gradle assembleDebug` now requires the four variables** (use your own copy of the same keystore). The release build type is unchanged and unsigned, and does not use the debug key; a future production key needs its own signing config and its own secrets. `applicationId` is still `com.n100m.businessbuilder`; no app code changed.
-- `.github/workflows/android-debug-apk.yml`: the keystore is restored from `N100M_KEYSTORE_BASE64` into `$RUNNER_TEMP` (outside the checkout and the artifact). The "Restore persistent debug keystore" step fails if any of the four secrets is missing, the base64 is invalid or empty, the keystore will not open with the store password, the alias is missing, or the alias is not a private key entry. It records the keystore certificate's SHA-256 fingerprint. After `gradle assembleDebug`, the step "Verify APK signing certificate" runs `apksigner verify --print-certs` on the APK and fails unless there is exactly one signer whose SHA-256 equals the keystore's fingerprint (it also fails if `apksigner` cannot be found). "Check no keystore is in the workspace" fails if any `*.keystore`, `*.jks` or `*.p12` file is under `android/`. A final `always()` step deletes the temporary keystore. Only the APK is uploaded. Passwords are passed through step `env` only, never through `GITHUB_ENV` or command lines. The certificate fingerprint (public) is printed as a notice in each run so builds can be compared.
-- `.gitignore`: now ignores `*.keystore`, `*.jks` and `*.p12`.
-- Trigger, tests, other steps, artifact name and path are unchanged.
+## Completed in Task 007 (explicit persistent debug signing) and its reset
+**History:** Task 007 added a dedicated N100M debug signing system (explicit `n100mDebug` signing config read from `N100M_*` environment variables, a `verifyN100mDebugSigning` Gradle task, keystore restore from `N100M_KEYSTORE_BASE64`, fingerprint comparison with `apksigner`, and a temporary-keystore cleanup step). **It was abandoned in the Task 007 Reset below and none of it remains.**
 
-**Action required: one-time setup (Windows PowerShell; the CI build fails until the four secrets exist).**
-1. Generate a dedicated keystore in a folder OUTSIDE the repository. This is the exact command; it prompts for the password, so none is typed into the command line or shell history:
-   `keytool -genkeypair -v -keystore n100m-debug.keystore -alias n100m-debug -keyalg RSA -keysize 2048 -validity 10000 -storetype PKCS12 -dname "CN=N100M Business Builder Debug, O=N100M"`
-   Choose a long random password. A PKCS12 keystore uses one password for the keystore and the key, so `N100M_KEY_PASSWORD` is the same as `N100M_KEYSTORE_PASSWORD`.
-2. Put the keystore, base64-encoded, on the clipboard: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("n100m-debug.keystore")) | Set-Clipboard` (Linux: `base64 -w0 n100m-debug.keystore`; macOS: `base64 -i n100m-debug.keystore | tr -d '\n'`).
-3. In GitHub: repository > Settings > Secrets and variables > Actions > New repository secret. Create four secrets:
-   - `N100M_KEYSTORE_BASE64`: the base64 text from step 2
-   - `N100M_KEYSTORE_PASSWORD`: the keystore password
-   - `N100M_KEY_ALIAS`: `n100m-debug`
-   - `N100M_KEY_PASSWORD`: the same password as `N100M_KEYSTORE_PASSWORD`
-4. Back up `n100m-debug.keystore` and its password somewhere private (for example a password manager). Do not commit them, share them or paste them into chat. If either is lost, the next APK will not update the installed app and the app must be uninstalled once more.
-5. The old secret `DEBUG_KEYSTORE_BASE64` is no longer used and can be deleted.
-6. **Uninstall the app from the phone once** before installing the first APK built with this key, because the installed copy is signed with a different key. **Uninstalling deletes everything the app stored on the device, including saved workbook answers** (there is no export yet). Copy out anything you need first. After that, every APK built with the same four secrets installs over the previous one.
-- Optional shortcut to avoid the uninstall: only if the app on your phone was installed from an APK that was signed with an earlier `DEBUG_KEYSTORE_BASE64` key, you can reuse that keystore by putting the same base64 value in `N100M_KEYSTORE_BASE64` and setting the password and key password to `android` and the alias to `androiddebugkey`. If you are not sure which key signed the installed app, do not rely on this.
-- **Verification caveat:** the sandbox had no Gradle or Android SDK and could not reach GitHub, so none of this has run in CI. Tested here: the workflow YAML parses; the restore, verify and workspace-guard shell steps were run against a real keytool-generated keystore (valid case, missing secret, invalid base64, garbage keystore, wrong password, wrong alias; matching and mismatching fingerprints, two signers, no signers, `apksigner` failing or missing, missing APK, empty expected fingerprint, keystore found in `android/`); the fingerprint the restore step extracts matched an independent OpenSSL calculation. NOT tested: the Groovy in `app/build.gradle` (no Gradle available, so read-checked only), a real `apksigner` output (a fake with the documented format was used), the actual GitHub Actions run, and install-over-install on a phone.
+### Task 007 Reset (standard Android debug signing restored)
+**Decision:** the dedicated N100M debug signing system is dropped. Debug APKs use the Android Gradle Plugin's standard, automatically managed debug keystore (`~/.android/debug.keystore`, alias `androiddebugkey`, passwords `android`). Reason: the custom system added secrets, setup steps and failure modes that this early-stage debug build does not need.
+- `android/app/build.gradle`: removed the `n100mDebug` signing config, the `signingConfigs` block, the explicit `signingConfig` on the `debug` build type, the `N100M_*` environment helpers, the `verifyN100mDebugSigning` task and the `tasks.configureEach` hook. The `debug` build type is no longer declared, so AGP's default debug signing applies. The `release` build type is unchanged (unsigned, does not use the debug key; a future production key needs its own signing config and secrets). `applicationId` is still `com.n100m.businessbuilder`; no app code changed.
+- `.github/workflows/android-debug-apk.yml`: rewritten to the pre-Task 007 flow: checkout, Node 22, Java 21, Gradle 8.11.1, `npm ci`, typecheck, tests, `npx vite build`, `npx cap sync android`, `gradle assembleDebug --no-daemon`, upload `app-debug.apk` as `n100m-business-builder-debug-apk`. Removed: keystore restore, Base64 decoding, fingerprint extraction and comparison, the workspace keystore check and the temporary keystore cleanup. No secrets are used.
+- `.gitignore`: the keystore patterns (`*.keystore`, `*.jks`, `*.p12`) are kept as a safety net; only the comment changed.
+- **Setup:** none. No GitHub secrets are needed. The four `N100M_*` secrets and the old `DEBUG_KEYSTORE_BASE64` secret are unused and can be deleted from the repository settings. A local `gradle assembleDebug` works again without environment variables.
+- **Known consequence:** each fresh CI runner generates its own debug key, so successive CI APKs are signed with different keys and may fail to install over each other ("App not installed as package conflicts with an existing package"). Uninstall the previous build first. **Uninstalling deletes everything the app stored on the device, including saved workbook answers** (there is no export yet). A phone that has the app installed from a Task 007 APK (signed with the N100M key) also needs one uninstall before installing a standard-debug APK.
+- **Verification:** see "Verification status" for what was and was not run. The Gradle build and the GitHub Actions run were not executed in the delivery environment.
 
 ## Verification status
 Run in the delivery environment (no network, so `npm install` could not run):
@@ -421,7 +410,7 @@ fields); backup reminder wording.
 
 ## Next task
 **Task 008: confirm the build, then decide what follows the self-assessment.**
-0. Complete the one-time signing setup from Task 007 above (four GitHub secrets, one uninstall) and confirm the workflow's "Verify APK signing certificate" step passes and a second build installs over the first.
+0. No signing setup is needed (Task 007 Reset). Expect to uninstall the previous CI APK before installing a new one.
 1. On your machine run `npm ci`, `npm run typecheck`, `npm test` and `npm run build`, and open `#/discovery/business-self-assessment` on a phone-sized screen to check the long option lists and section step list. Commit and push, then confirm the "Android debug APK" workflow is green (it has not yet run in CI for any task since Task 003).
 2. Product decisions needed: (a) whether the Self-Assessment Summary should show the user's earlier answers beside the reflection questions (the engine has no read-only or computed fields today, so this needs engine work); (b) what the Dashboard Discovery card should show now that a real workbook exists (it is still hard-coded to "not-started"); (c) whether to clean the orphaned demo response out of storage.
 3. Still open from earlier: decide and implement stricter storage input rules (missing slug, unknown type or status) before imports exist.

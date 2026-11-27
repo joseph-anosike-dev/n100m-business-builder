@@ -11,7 +11,7 @@ Status: foundation (Task 001). Specification baseline: Master Product Specificat
 | Routing | Small in-repo hash router (`src/app/router.tsx`) | Hash URLs need no server rewrites and behave in a Capacitor WebView. Avoids a dependency for nine flat routes. |
 | Styling | Plain CSS with design tokens (`src/styles/`) | No runtime cost, no build plugin, easy light/dark theming. Revisit only if it becomes painful. |
 | Persistence | IndexedDB behind `StorageAdapter` (`src/storage/`) | Spec D6. Raw IndexedDB, no wrapper library. |
-| Android | Capacitor 7 wrapping `dist/` (`android/`, `capacitor.config.ts`) | Spec D1. Debug APK built by `.github/workflows/android-debug-apk.yml`, signed with an explicit persistent debug key supplied by the `N100M_*` environment variables / repository secrets (`android/app/build.gradle`; setup in `PROJECT_STATE.md`, Task 007). The CI build fails rather than use any other key. Native-only code is isolated in `src/native/` and is a no-op in a browser. |
+| Android | Capacitor 7 wrapping `dist/` (`android/`, `capacitor.config.ts`) | Spec D1. Debug APK built by `.github/workflows/android-debug-apk.yml`, signed with the Android Gradle Plugin's standard automatically managed debug keystore (no custom keystore or secrets; release signing is separate and not configured; see `PROJECT_STATE.md`, Task 007 Reset). Native-only code is isolated in `src/native/` and is a no-op in a browser. |
 
 Runtime dependencies: `react`, `react-dom`, and the Capacitor packages `@capacitor/core`, `@capacitor/app`, `@capacitor/android` (`@capacitor/cli` is a dev dependency).
 
