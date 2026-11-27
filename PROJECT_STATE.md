@@ -4,7 +4,7 @@
 Task 001 (application foundation), Task 001.1 (official brand palette), Task 002 (Capacitor and Android
 build integration), Task 003 (Vitest testing foundation), Task 004 (navigation and storage tests) and
 Task 004.1 (storage integrity and error fixes), Task 005 / 005.1 (workbook engine and data safety),
-Task 006 (Business Self-Assessment workbook) and Task 007 (explicit persistent Android debug signing, since reset to standard Gradle debug signing: see "Task 007 Reset") are delivered.
+Task 006 (Business Self-Assessment workbook), Task 008A (Dashboard Discovery progress) and Task 007 (explicit persistent Android debug signing, since reset to standard Gradle debug signing: see "Task 007 Reset") are delivered.
 The developer reports that
 `npm install`, `npm run typecheck` and `npm run build` succeed and that the debug APK was installed and tested
 on a physical phone with a satisfactory result (see "Verification status").
@@ -282,6 +282,16 @@ Task 004 assertion was weakened or removed.
 - **Verification caveat:** this sandbox had no network, so `npm ci` could not complete and the real `npm run typecheck`, `npm run build` and `npm test` (Vitest) were NOT run. What was run: the 19 new tests plus the existing `answers`, `definitionChange`, `saver`, `render` tests and 8 of 11 `responseStore` and 7 of 8 `validateDefinition` tests passed through a small stand-in test runner (esbuild + a hand-written `describe/it/expect`). The remaining existing tests failed only because the stand-in lacks `toThrow`/`rejects` matchers; `closeSafety.test.ts` was not run (needs `vi`). TypeScript was checked with a global `tsc` and stub declarations for `react`, `react-dom` and `vitest`: no errors in the new or changed files. Run `npm run typecheck`, `npm test` and `npm run build` before treating this as passing.
 - Not verified: layout and use of the workbook in a real browser or on Android (long multi-select lists on a phone, the section step list with the longer titles), and the wording with real users.
 
+## Completed in Task 008A (Dashboard Discovery progress)
+- The Dashboard Discovery card now shows real progress: **Start Business Discovery** (nothing saved), **Continue Discovery** (started, not complete), **Review Business Profile** (complete). It replaces the hard-coded `"not-started"`.
+- No second progress system. The status is derived from the existing `workbook-response` item of `business-self-assessment`: `loadResponse` -> `sanitizeAnswers` -> `workbookProgress` (the workbook's own rules). The stored `status` field is not trusted (it can be stale after a definition change). Answers held in memory after a failed save (`unsavedStore`) are newer than stored ones and take priority. Nothing is ever written by this feature.
+- Safe handling: no record, cleared answers, malformed `fields.answers` (null, string, array, number, missing), wrong-typed values and removed options all give `not-started`/`in-progress` as the sanitised answers dictate and never throw. If storage cannot be read the card shows the start wording with a notice and still links to the assessment; the workbook page keeps its own guard that blocks editing after a failed load, so saved work is not overwritten. While loading, a neutral "Checking your saved progress…" card is shown to avoid flashing the wrong state.
+- Navigation: all three states link to `#/discovery/business-self-assessment` (`discoveryRoute()`). There is no separate review/profile screen yet, so for a completed assessment the workbook screen (which shows "Workbook complete" and stays editable) is the review destination. A dedicated Business Profile screen is future work and was not built.
+- New: `src/workbooks/discoveryStatus.ts`, `src/workbooks/useDiscoveryStatus.ts`, `src/workbooks/discoveryStatus.test.ts` (25 tests). Modified: `src/pages/DiscoveryCard.tsx` (now takes `load`, exports `DISCOVERY_COPY`), `src/pages/Dashboard.tsx`, `PROJECT_STATE.md`. No dependency, routing, storage-layer, Android or workflow changes. No data migration: existing saved answers are read as they are.
+- Tests (25): all three states from real saves; partial and required-only saves; complete then reduced; all answers cleared; stale stored status; five malformed shapes; wrong types and unknown options; storage read failure; no writes and unchanged records; demo workbook response ignored; in-memory unsaved answers win (also when storage is unreadable); card rendering for the three states, loading and error, including the link target. Mutation checks (reverted): forcing `not-started` fails 7 tests; ignoring unsaved answers fails 2.
+- **Verification (Linux sandbox, Node/npm available, `npm ci` run):** `npm run typecheck` exit 0; `npm test` 15 files, 272 passed (247 earlier + 25 new); `npm run build` exit 0 (80 modules).
+- **Not verified:** the `useDiscoveryStatus` hook and the Dashboard in a real browser or on Android (no DOM test environment in the project, none added); card state changing after completing the workbook and pressing back on a device; real IndexedDB behaviour (tests use an in-memory fake).
+
 ## Completed in Task 007 (explicit persistent debug signing) and its reset
 **History:** Task 007 added a dedicated N100M debug signing system (explicit `n100mDebug` signing config read from `N100M_*` environment variables, a `verifyN100mDebugSigning` Gradle task, keystore restore from `N100M_KEYSTORE_BASE64`, fingerprint comparison with `apksigner`, and a temporary-keystore cleanup step). **It was abandoned in the Task 007 Reset below and none of it remains.**
 
@@ -397,7 +407,7 @@ Outstanding verification for Task 003:
     callers should not show or log `cause` to users without thought.
   - Error messages are English only and plain text.
   - An aborted or failed database open is not retried automatically beyond the next call opening it again.
-- Dashboard shows static placeholders; Discovery state is hard-coded to "not-started" until items exist.
+- Dashboard "Recommended next" and "Continue where you left off" are still static placeholders. The Discovery card is live (Task 008A). There is no Business Profile screen yet; "Review Business Profile" opens the completed workbook.
 - Currency setting is not built (Settings has theme only).
 - D14 still needs a product decision.
 - The `theme-color` meta tags still follow the operating system's light/dark setting in a browser. On Android the

@@ -1,9 +1,11 @@
 import { Link } from '../app/router';
+import { discoveryRoute } from '../workbooks/discoveryStatus';
+import type { DiscoveryLoad } from '../workbooks/useDiscoveryStatus';
 
 export type DiscoveryState = 'not-started' | 'in-progress' | 'complete';
 
 // Wording from spec 5.3: Start -> Continue -> Review.
-const COPY: Record<DiscoveryState, { title: string; body: string; action: string }> = {
+export const DISCOVERY_COPY: Record<DiscoveryState, { title: string; body: string; action: string }> = {
   'not-started': {
     title: 'Start Business Discovery',
     body: 'Tell us where your business is today. You get a suggested place to start.',
@@ -21,15 +23,32 @@ const COPY: Record<DiscoveryState, { title: string; body: string; action: string
   },
 };
 
-export function DiscoveryCard({ state }: { state: DiscoveryState }) {
-  const copy = COPY[state];
+/** Card for a known state. Its link always points at the Business Self-Assessment. */
+export function DiscoveryCard({ load }: { load: DiscoveryLoad }) {
+  if (load.kind === 'loading') {
+    return (
+      <section className="hero" aria-labelledby="discovery-card-title" aria-busy="true">
+        <h2 id="discovery-card-title" className="hero__title">
+          Business Discovery
+        </h2>
+        <p className="hero__body">Checking your saved progress…</p>
+      </section>
+    );
+  }
+  const state: DiscoveryState = load.kind === 'ready' ? load.status : 'not-started';
+  const copy = DISCOVERY_COPY[state];
   return (
     <section className="hero" aria-labelledby="discovery-card-title">
       <h2 id="discovery-card-title" className="hero__title">
         {copy.title}
       </h2>
       <p className="hero__body">{copy.body}</p>
-      <Link to="/discovery" className="btn btn--accent">
+      {load.kind === 'error' ? (
+        <p className="hero__body" role="status">
+          Your saved progress could not be read right now. Opening the assessment will not change anything you saved.
+        </p>
+      ) : null}
+      <Link to={discoveryRoute()} className="btn btn--accent">
         {copy.action}
       </Link>
     </section>

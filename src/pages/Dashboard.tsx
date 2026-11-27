@@ -2,11 +2,13 @@ import { Icon } from '../components/Icon';
 import { PageHeader } from '../components/PageHeader';
 import { Link } from '../app/router';
 import { getModule, type ModuleId } from '../app/navigation';
+import { useDiscoveryStatus } from '../workbooks/useDiscoveryStatus';
 import { DiscoveryCard } from './DiscoveryCard';
 
 const JUMP_TO: ModuleId[] = ['offers', 'leads', 'models', 'roadmap', 'business', 'library'];
 
 export function Dashboard() {
+  const discovery = useDiscoveryStatus();
   return (
     <div className="page">
       <PageHeader
@@ -14,8 +16,7 @@ export function Dashboard() {
         description="Where your business stands and what to do next."
       />
 
-      {/* Discovery progress will come from stored items once Discovery exists. */}
-      <DiscoveryCard state="not-started" />
+      <DiscoveryCard load={discovery} />
 
       <div className="dash-grid">
         <section className="card" aria-labelledby="recommended-title">
