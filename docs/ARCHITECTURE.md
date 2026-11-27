@@ -108,10 +108,34 @@ transactions cannot span arbitrary async code. Settings are deliberately not par
 `batch` is all-or-nothing: if any operation is invalid or fails, nothing in the batch is written. Every storage
 failure rejects with a `StorageError` (an `Error`; the original IndexedDB error is its `cause`).
 
+## Workbooks (Task 005)
+
+Code lives in `src/workbooks/`. A workbook is plain data; the engine renders, validates and saves it.
+
+- `types.ts`: `WorkbookDefinition` > sections > fields. Field types: `short-text`, `long-text`, `number`, `single-select`, `multi-select`, `checkbox`. Answers are keyed by field id (`string`, `string[]` or `boolean`; number answers are stored as the typed text and parsed on validation).
+- `validateDefinition.ts`: checks a definition (ids, duplicates, options, limits). The registry runs it on load.
+- `answers.ts`: pure logic (field errors, section and workbook progress, `toggleOption`, `withAnswer`, `sanitizeAnswers`). No React, no storage.
+- `responseStore.ts`: `loadResponse` / `saveResponse` through `StorageAdapter` (`getItem`, `putItem` only).
+- `saver.ts`: debounced autosave, one write at a time, retry after errors; writes pending answers when a workbook closes, and `whenSavesSettled()` lets a reopened workbook wait for that write.
+- `useWorkbookResponse.ts`, `FieldInput.tsx`, `WorkbookRenderer.tsx`: presentation. Styles are in `src/styles/workbook.css` and use the existing tokens.
+- Routes: `/discovery` lists workbooks and `/discovery/<workbook-id>` opens one (so Android back returns to `/discovery`).
+
+**Response storage model.** One `Item` per workbook: `type: 'workbook-response'`, `id: workbook-response:<workbookId>`, `slug: workbook-response-<workbookId>`, `source_ref: <workbookId>`, `status` derived from progress (`not-started`, `in-progress`, `complete`), `fields: { workbookId, answers, preserved? }`. The id is derived rather than random, so repeated or overlapping saves replace one record and can never duplicate it. Stored answers are filtered against the current definition on load; what is filtered out is kept in `preserved` when saving.
+
+**Failure handling.** A failed save shows a banner and keeps answers on screen; "Try saving again" retries. A failed load keeps the form closed, so a blank form cannot overwrite saved work. See "Data safety" below for closing and reopening.
+
+**Data safety (Task 005.1).**
+- *Lifecycle autosave.* The 600 ms debounce is unchanged. `flushOnLifecycle` (in `saver.ts`) also starts a save when the document becomes hidden (`visibilitychange`) and on `pagehide`. It only starts the write: the browser or Android can still stop the process before an asynchronous IndexedDB write finishes, so this narrows the window for losing the last edits and does not close it. Writes stay one at a time and newest-wins, so repeated triggers never overlap or duplicate.
+- *Failed save on close.* If the save fails after the workbook has closed, `ResponseSaver` passes the newest unsaved answers to `unsavedStore.ts` (in memory only; lost if the app is closed). `UnsavedBanner` (mounted in `AppShell`) warns on every screen except that workbook's own page. Reopening the workbook shows those answers with an error state and a "Try saving again" button; the entry clears only after a save succeeds. "Saved" and "Workbook complete" are shown only when the latest answers are actually saved.
+- *Definition changes.* `saveResponse` keeps anything the current definition would drop (removed or renamed fields, changed types, removed options) in `fields.preserved` of the same record, merged across saves. `loadResponse` ignores `preserved`, so obsolete answers never reach rendering or validation. Preserved answers are not restored automatically if a field returns; recovery is manual. Clearing an answer is not treated as obsolete. There is still no definition version or migration step.
+
+**Adding a workbook.** Create `src/workbooks/definitions/<name>.ts` exporting a `WorkbookDefinition`, add it to `WORKBOOKS` in `registry.ts`, and run the tests. Never rename a field id or option value once released; saved answers use them as keys.
+
 ## Known limitations
 
 - Not yet exercised: large attachments, large ZIPs, quota inside the Capacitor WebView (spec 12.4).
 - Android back-button handling and system-bar styling are implemented but not yet verified on a device.
 - The Android project is hand-written to the Capacitor 7 template and has not yet been built.
 - Automated tests (Vitest, `npm test`) cover back navigation, the navigation config and the storage layer (against fake-indexeddb). UI components, the router and theme settings are not yet tested. See `PROJECT_STATE.md` for remaining storage limitations.
-- Item identifiers (UUID, slug) are defined as types only; generation helpers come with the first workbook.
+- Workbook response items use derived ids (`workbook-response:<workbookId>`) rather than UUIDs. General UUID/slug helpers for other item types still do not exist.
+- Workbook tests render to static markup and test pure logic; there are no browser interaction tests (clicking, typing) and no tests against real IndexedDB for responses.

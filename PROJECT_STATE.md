@@ -250,6 +250,23 @@ Task 004 assertion was weakened or removed.
 - Not tested: the workflow has not run with the secret, and update-over-install has not been verified. The first
   APK signed with this key still needs a one-time uninstall of any APK signed by a previous runner key.
 
+## Completed in Task 005 (workbook foundation)
+- Reusable workbook engine in `src/workbooks/` (definitions, validation, renderer, autosave, response storage). See `docs/ARCHITECTURE.md`, section "Workbooks".
+- Six field types: short text, long text, number, single selection, multiple selection, checkbox (required checkbox = must be ticked).
+- Responses are saved through `StorageAdapter` as one `workbook-response` item per workbook (derived id, so no duplicates). `ItemType` gained `'workbook-response'`.
+- Demonstration workbook "Business self-check (demo)" at `#/discovery/business-self-check`, listed on the Business Discovery page. It is a technical demo, not the Discovery curriculum.
+- New files: `src/workbooks/*`, `src/pages/Discovery.tsx`, `src/pages/WorkbookPage.tsx`, `src/styles/workbook.css`. Modified: `src/domain/types.ts`, `src/routes.tsx`, `src/main.tsx`, docs. No dependency, Android ID or signing changes.
+- Tests added (Vitest, `src/workbooks/*.test.ts`): definition validation, field rendering, required-field validation, selection and checkbox logic, save and restore, partial responses, completion, storage failures, autosave.
+- **Verification caveat:** in the build session `npm ci`, `npm run typecheck`, `npm run build` and `npm test` could NOT be run (no network, dependencies not installable). They must be run by the product owner before this is treated as passing. See the delivery notes for what was checked instead.
+- Not verified: behaviour on a device, mobile layout in a real browser, clicking and typing in the UI, and the Android back button on the workbook screen.
+
+## Completed in Task 005.1 (workbook data safety)
+- Lifecycle autosave: pending answers are flushed on `visibilitychange` (hidden) and `pagehide`, through the existing saver (`flushOnLifecycle`). The 600 ms debounce is unchanged. This starts the write only; it cannot guarantee completion if Android kills the process.
+- Failed save on close: answers are kept in memory (`unsavedStore.ts`, not durable), a banner (`UnsavedBanner`, in `AppShell`) warns on other screens, and reopening the workbook restores those answers with an error state and a retry button. "Saved" and "Workbook complete" are no longer shown unless the latest answers are saved.
+- Definition changes: obsolete answers (removed or renamed fields, changed types, removed options) are preserved under `fields.preserved` in the same deterministic record and ignored by rendering and validation. Not restored automatically; there is no definition version or migration step.
+- Files: new `src/workbooks/unsavedStore.ts`, `UnsavedBanner.tsx`, tests `closeSafety.test.ts`, `definitionChange.test.ts`; modified `saver.ts`, `responseStore.ts`, `useWorkbookResponse.ts`, `WorkbookRenderer.tsx`, `src/app/AppShell.tsx`, `src/styles/workbook.css`, `saver.test.ts`, `render.test.ts`, docs.
+- **Verification caveat (unchanged):** `npm ci`, `npm run typecheck`, `npm run build` and `npm test` have NOT been run (no network in the build session). Tests were run only through a local stand-in for Vitest with an in-memory storage fake. The React files were not type-checked. Nothing was tested in a browser, on a device, or against real IndexedDB, and the real `visibilitychange`/`pagehide` behaviour in the Android WebView is unverified. `UnsavedBanner` has no automated test.
+
 ## Verification status
 Run in the delivery environment (no network, so `npm install` could not run):
 - The source was bundled with esbuild and loaded in headless Chromium at 360, 414, 820 and 1280px.

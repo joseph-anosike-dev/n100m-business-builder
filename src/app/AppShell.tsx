@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNativeShell } from '../native/useNativeShell';
 import { Screen } from '../routes';
+import { UnsavedBanner } from '../workbooks/UnsavedBanner';
 import { BottomNav } from './BottomNav';
 import { MoreSheet } from './MoreSheet';
 import { Sidebar } from './Sidebar';
@@ -43,6 +44,7 @@ export function AppShell() {
       <TopBar showBack={isOffBar(mod?.id)} onOpenMore={() => setMoreOpen(true)} />
       <Sidebar expanded={railExpanded} onToggle={() => setRailExpanded((v) => !v)} />
       <main id="main-content" ref={mainRef} tabIndex={-1} className="main">
+        <UnsavedBanner />
         <Screen path={path} />
       </main>
       <BottomNav onOpenMore={() => setMoreOpen(true)} />

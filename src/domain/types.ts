@@ -9,7 +9,8 @@ export type ItemType =
   | 'lead-plan'
   | 'money-model'
   | 'roadmap'
-  | 'note';
+  | 'note'
+  | 'workbook-response';
 
 export type ItemStatus = 'not-started' | 'in-progress' | 'complete';
 

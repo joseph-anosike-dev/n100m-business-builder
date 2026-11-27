@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import { moduleForPath, type ModuleId } from './app/navigation';
 import { Dashboard } from './pages/Dashboard';
+import { Discovery } from './pages/Discovery';
 import { NotFound } from './pages/NotFound';
 import { Placeholder } from './pages/Placeholder';
 import { Settings } from './pages/Settings';
@@ -13,7 +14,7 @@ const placeholder = (id: ModuleId): ComponentType => {
 
 const SCREENS: Record<ModuleId, ComponentType> = {
   dashboard: Dashboard,
-  discovery: placeholder('discovery'),
+  discovery: Discovery,
   offers: placeholder('offers'),
   leads: placeholder('leads'),
   models: placeholder('models'),

@@ -6,6 +6,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/shell.css';
 import './styles/components.css';
+import './styles/workbook.css';
 
 // Ask the browser/WebView not to evict our data (spec 12.3). Failure is fine.
 void requestPersistentStorage();
