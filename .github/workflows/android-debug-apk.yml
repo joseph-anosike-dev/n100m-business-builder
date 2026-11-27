@@ -1,7 +1,11 @@
 name: Android debug APK
 
-# Builds a DEBUG APK signed with a persistent debug keystore (repository secret DEBUG_KEYSTORE_BASE64) on
-# every push to main and uploads it as a workflow artifact, so successive APKs install as updates. No release signing, no Play Store, no Android Studio.
+# Builds a DEBUG APK signed with an explicit, persistent debug key restored from repository secrets, on
+# every push to main, and uploads it as a workflow artifact, so successive APKs install as updates.
+# Required secrets: N100M_KEYSTORE_BASE64, N100M_KEYSTORE_PASSWORD, N100M_KEY_ALIAS, N100M_KEY_PASSWORD
+# (setup in PROJECT_STATE.md, Task 007). The build fails if any is missing or invalid; it never creates or
+# substitutes another key. The keystore lives in RUNNER_TEMP, outside the workspace and the artifact.
+# No release signing, no Play Store, no Android Studio.
 on:
   push:
     branches: [main]
@@ -52,28 +56,115 @@ jobs:
       - name: Sync web build into the Android project
         run: npx cap sync android
 
-      # Restore the persistent DEBUG keystore to the Android Gradle Plugin's standard location
-      # (~/.android/debug.keystore), which the default debug signing config uses. Debug use only:
-      # never use this key for release signing. Fails rather than letting Gradle generate a new key.
+      # Decode the persistent DEBUG keystore into RUNNER_TEMP (outside the checkout, so it can never be
+      # committed or end up in the artifact). Debug use only: never use this key for release signing.
+      # Fails, instead of letting anything generate another key, if a secret is missing or the keystore,
+      # alias or store password is wrong. Only non-secret values (path, public fingerprint) go to GITHUB_ENV.
       - name: Restore persistent debug keystore
         env:
-          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          N100M_KEYSTORE_BASE64: ${{ secrets.N100M_KEYSTORE_BASE64 }}
+          N100M_KEYSTORE_PASSWORD: ${{ secrets.N100M_KEYSTORE_PASSWORD }}
+          N100M_KEY_ALIAS: ${{ secrets.N100M_KEY_ALIAS }}
+          N100M_KEY_PASSWORD: ${{ secrets.N100M_KEY_PASSWORD }}
         run: |
-          if [ -z "$DEBUG_KEYSTORE_BASE64" ]; then
-            echo "::error title=Missing secret DEBUG_KEYSTORE_BASE64::Repository secret DEBUG_KEYSTORE_BASE64 is not set. Without it each build would get a new random debug key and APKs could not update each other. Create it under Settings > Secrets and variables > Actions (see PROJECT_STATE.md for the steps)."
-            exit 1
-          fi
-          mkdir -p "$HOME/.android"
-          printf '%s' "$DEBUG_KEYSTORE_BASE64" | base64 -d > "$HOME/.android/debug.keystore"
-          if ! keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey > /dev/null 2>&1; then
-            rm -f "$HOME/.android/debug.keystore"
-            echo "::error title=Invalid debug keystore::DEBUG_KEYSTORE_BASE64 did not decode to a keystore with alias androiddebugkey and store password android. Regenerate it (see PROJECT_STATE.md)."
+          set -euo pipefail
+          missing=""
+          for name in N100M_KEYSTORE_BASE64 N100M_KEYSTORE_PASSWORD N100M_KEY_ALIAS N100M_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error title=Missing signing secrets::Repository secret(s) not set:$missing. Without them the APK cannot be signed with the persistent key. Create them under Settings > Secrets and variables > Actions (see PROJECT_STATE.md, Task 007). No other key will be used."
             exit 1
           fi
 
+          keystore="$RUNNER_TEMP/n100m-debug.keystore"
+          umask 077
+          if ! printf '%s' "$N100M_KEYSTORE_BASE64" | base64 -d > "$keystore" 2> /dev/null || [ ! -s "$keystore" ]; then
+            rm -f "$keystore"
+            echo "::error title=Invalid keystore secret::N100M_KEYSTORE_BASE64 is not valid base64 or decodes to an empty file. Recreate it (see PROJECT_STATE.md, Task 007)."
+            exit 1
+          fi
+
+          if ! keytool -list -keystore "$keystore" -storepass:env N100M_KEYSTORE_PASSWORD -alias "$N100M_KEY_ALIAS" > /dev/null 2>&1; then
+            rm -f "$keystore"
+            echo "::error title=Invalid keystore::N100M_KEYSTORE_BASE64 is not a readable keystore, N100M_KEYSTORE_PASSWORD is wrong, or the keystore has no alias named by N100M_KEY_ALIAS."
+            exit 1
+          fi
+
+          details="$(keytool -list -v -keystore "$keystore" -storepass:env N100M_KEYSTORE_PASSWORD -alias "$N100M_KEY_ALIAS")"
+          if ! printf '%s\n' "$details" | grep -q 'Entry type: PrivateKeyEntry'; then
+            rm -f "$keystore"
+            echo "::error title=Invalid keystore::The alias in N100M_KEY_ALIAS is not a private key entry, so it cannot sign an APK."
+            exit 1
+          fi
+          expected="$(printf '%s\n' "$details" | awk '/^[[:space:]]*SHA256:/ { print $2; exit }' | tr -d ':' | tr 'a-f' 'A-F')"
+          if ! printf '%s' "$expected" | grep -Eq '^[0-9A-F]{64}$'; then
+            rm -f "$keystore"
+            echo "::error title=Invalid keystore::Could not read the certificate SHA-256 fingerprint from the keystore."
+            exit 1
+          fi
+
+          echo "N100M_KEYSTORE_PATH=$keystore" >> "$GITHUB_ENV"
+          echo "N100M_EXPECTED_CERT_SHA256=$expected" >> "$GITHUB_ENV"
+          echo "::notice title=Debug signing certificate (SHA-256)::$expected"
+
+      # Gradle reads all four values from the environment (see android/app/build.gradle) and fails if any is missing.
       - name: Build debug APK
         working-directory: android
+        env:
+          N100M_KEYSTORE_PATH: ${{ env.N100M_KEYSTORE_PATH }}
+          N100M_KEYSTORE_PASSWORD: ${{ secrets.N100M_KEYSTORE_PASSWORD }}
+          N100M_KEY_ALIAS: ${{ secrets.N100M_KEY_ALIAS }}
+          N100M_KEY_PASSWORD: ${{ secrets.N100M_KEY_PASSWORD }}
         run: gradle assembleDebug --no-daemon
+
+      # Compare the APK's signing certificate with the one in the restored keystore. Any difference, more
+      # than one signer, an unsigned or invalid APK, or a missing apksigner fails the job.
+      - name: Verify APK signing certificate
+        run: |
+          set -euo pipefail
+          apk="android/app/build/outputs/apk/debug/app-debug.apk"
+          if [ ! -f "$apk" ]; then
+            echo "::error title=APK missing::$apk was not produced."
+            exit 1
+          fi
+          if ! printf '%s' "${N100M_EXPECTED_CERT_SHA256:-}" | grep -Eq '^[0-9A-F]{64}$'; then
+            echo "::error title=Missing expected fingerprint::The keystore fingerprint from the restore step is not available."
+            exit 1
+          fi
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          apksigner=""
+          for version in $(ls -1 "$sdk/build-tools" 2> /dev/null | sort -rV); do
+            if [ -x "$sdk/build-tools/$version/apksigner" ]; then
+              apksigner="$sdk/build-tools/$version/apksigner"
+              break
+            fi
+          done
+          if [ -z "$apksigner" ]; then
+            echo "::error title=apksigner not found::Could not find apksigner in the Android SDK build-tools, so the signature cannot be verified."
+            exit 1
+          fi
+          output="$("$apksigner" verify --print-certs "$apk")"
+          digests="$(printf '%s\n' "$output" | sed -n 's/^Signer #[0-9][0-9]* certificate SHA-256 digest: //p' | tr -d ':' | tr 'a-f' 'A-F')"
+          count="$(printf '%s\n' "$digests" | grep -c . || true)"
+          if [ "$count" -ne 1 ]; then
+            echo "::error title=Unexpected signers::Expected exactly one APK signer, found $count."
+            exit 1
+          fi
+          if [ "$digests" != "$N100M_EXPECTED_CERT_SHA256" ]; then
+            echo "::error title=Signing certificate mismatch::The APK is not signed with the certificate in the restored keystore. APK: $digests Keystore: $N100M_EXPECTED_CERT_SHA256"
+            exit 1
+          fi
+          echo "::notice title=APK signature verified::Signed with the persistent debug key (SHA-256 $digests)."
+
+      # Belt and braces: nothing that looks like a keystore may sit inside the Android project.
+      - name: Check no keystore is in the workspace
+        run: |
+          found="$(find android -type f \( -name '*.keystore' -o -name '*.jks' -o -name '*.p12' \) -not -path '*/node_modules/*')"
+          if [ -n "$found" ]; then
+            echo "::error title=Keystore in workspace::Keystore-like file(s) found in the Android project: $found"
+            exit 1
+          fi
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -82,3 +173,7 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Remove temporary keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/n100m-debug.keystore"
