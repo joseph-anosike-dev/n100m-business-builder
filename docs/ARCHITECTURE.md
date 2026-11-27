@@ -108,7 +108,7 @@ transactions cannot span arbitrary async code. Settings are deliberately not par
 `batch` is all-or-nothing: if any operation is invalid or fails, nothing in the batch is written. Every storage
 failure rejects with a `StorageError` (an `Error`; the original IndexedDB error is its `cause`).
 
-## Workbooks (Task 005)
+## Workbooks (Task 005, first real workbook in Task 006)
 
 Code lives in `src/workbooks/`. A workbook is plain data; the engine renders, validates and saves it.
 
@@ -130,6 +130,8 @@ Code lives in `src/workbooks/`. A workbook is plain data; the engine renders, va
 - *Definition changes.* `saveResponse` keeps anything the current definition would drop (removed or renamed fields, changed types, removed options) in `fields.preserved` of the same record, merged across saves. `loadResponse` ignores `preserved`, so obsolete answers never reach rendering or validation. Preserved answers are not restored automatically if a field returns; recovery is manual. Clearing an answer is not treated as obsolete. There is still no definition version or migration step.
 
 **Adding a workbook.** Create `src/workbooks/definitions/<name>.ts` exporting a `WorkbookDefinition`, add it to `WORKBOOKS` in `registry.ts`, and run the tests. Never rename a field id or option value once released; saved answers use them as keys.
+
+**Registered workbooks (Task 006).** `WORKBOOKS` holds one workbook: `business-self-assessment` (`definitions/businessSelfAssessment.ts`), at `#/discovery/business-self-assessment`. It has four sections (Personal Background, Resources, Preferences and Constraints, Self-Assessment Summary), 22 fields and three required fields (`skills`, `startupCapital`, `limitations`). Startup capital is a single-select of naira ranges (the currency setting is not built yet, so the symbol is fixed in the labels). The summary section is written by the user; nothing is generated from earlier answers. The original demo (`definitions/businessSelfCheck.ts`, id `business-self-check`) is **not registered**: users cannot reach it. The file is kept only as a fixture for the engine tests. Any response saved for it stays in storage as `workbook-response:business-self-check`; it is never read, changed or deleted by the app, and the new workbook uses a different id and slug, so the two cannot collide. If the demo should be removed from storage entirely, that needs a deliberate migration; none exists.
 
 ## Known limitations
 

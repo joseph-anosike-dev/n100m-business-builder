@@ -1,8 +1,9 @@
 import type { WorkbookDefinition } from '../types';
 
 /**
- * Demonstration workbook for Task 005. It proves the engine end to end and is
- * NOT the Business Discovery curriculum. Replace or remove it when real content lands.
+ * Demonstration workbook from Task 005. Since Task 006 it is NOT registered, so users never see it.
+ * It stays only as a test fixture for the workbook engine (many tests import it). Its saved responses,
+ * if any, remain in storage under `workbook-response:business-self-check` and are never read or changed.
  */
 export const businessSelfCheck: WorkbookDefinition = {
   id: 'business-self-check',

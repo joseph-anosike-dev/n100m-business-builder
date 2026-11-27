@@ -3,7 +3,7 @@
 ## Current status
 Task 001 (application foundation), Task 001.1 (official brand palette), Task 002 (Capacitor and Android
 build integration), Task 003 (Vitest testing foundation), Task 004 (navigation and storage tests) and
-Task 004.1 (storage integrity and error fixes) are delivered. The developer reports that
+Task 004.1 (storage integrity and error fixes), Task 005 / 005.1 (workbook engine and data safety) and Task 006 (Business Self-Assessment workbook) are delivered. The developer reports that
 `npm install`, `npm run typecheck` and `npm run build` succeed and that the debug APK was installed and tested
 on a physical phone with a satisfactory result (see "Verification status").
 The responsive app shell, navigation, design tokens and storage layer exist, the brand palette is applied in
@@ -254,7 +254,7 @@ Task 004 assertion was weakened or removed.
 - Reusable workbook engine in `src/workbooks/` (definitions, validation, renderer, autosave, response storage). See `docs/ARCHITECTURE.md`, section "Workbooks".
 - Six field types: short text, long text, number, single selection, multiple selection, checkbox (required checkbox = must be ticked).
 - Responses are saved through `StorageAdapter` as one `workbook-response` item per workbook (derived id, so no duplicates). `ItemType` gained `'workbook-response'`.
-- Demonstration workbook "Business self-check (demo)" at `#/discovery/business-self-check`, listed on the Business Discovery page. It is a technical demo, not the Discovery curriculum.
+- Demonstration workbook "Business self-check (demo)" at `#/discovery/business-self-check`, listed on the Business Discovery page. It is a technical demo, not the Discovery curriculum. (Unregistered and hidden since Task 006; kept as a test fixture.)
 - New files: `src/workbooks/*`, `src/pages/Discovery.tsx`, `src/pages/WorkbookPage.tsx`, `src/styles/workbook.css`. Modified: `src/domain/types.ts`, `src/routes.tsx`, `src/main.tsx`, docs. No dependency, Android ID or signing changes.
 - Tests added (Vitest, `src/workbooks/*.test.ts`): definition validation, field rendering, required-field validation, selection and checkbox logic, save and restore, partial responses, completion, storage failures, autosave.
 - **Verification caveat:** in the build session `npm ci`, `npm run typecheck`, `npm run build` and `npm test` could NOT be run (no network, dependencies not installable). They must be run by the product owner before this is treated as passing. See the delivery notes for what was checked instead.
@@ -266,6 +266,18 @@ Task 004 assertion was weakened or removed.
 - Definition changes: obsolete answers (removed or renamed fields, changed types, removed options) are preserved under `fields.preserved` in the same deterministic record and ignored by rendering and validation. Not restored automatically; there is no definition version or migration step.
 - Files: new `src/workbooks/unsavedStore.ts`, `UnsavedBanner.tsx`, tests `closeSafety.test.ts`, `definitionChange.test.ts`; modified `saver.ts`, `responseStore.ts`, `useWorkbookResponse.ts`, `WorkbookRenderer.tsx`, `src/app/AppShell.tsx`, `src/styles/workbook.css`, `saver.test.ts`, `render.test.ts`, docs.
 - **Verification caveat (unchanged):** `npm ci`, `npm run typecheck`, `npm run build` and `npm test` have NOT been run (no network in the build session). Tests were run only through a local stand-in for Vitest with an in-memory storage fake. The React files were not type-checked. Nothing was tested in a browser, on a device, or against real IndexedDB, and the real `visibilitychange`/`pagehide` behaviour in the Android WebView is unverified. `UnsavedBanner` has no automated test.
+
+## Completed in Task 006 (Business Self-Assessment workbook)
+- New workbook `business-self-assessment`, "Business Self-Assessment", at `#/discovery/business-self-assessment`. Built only with the existing engine (definition, field types, renderer, autosave, storage); no engine code was changed and no dependency was added.
+- Sections: Personal Background (skills, experience, expertise, interests), Resources (startup capital in NGN ranges, capital sources, equipment and assets, hours per week, network), Preferences and Constraints (preferred and avoided activities, location, operating places and limits, limitations), Self-Assessment Summary (strongest skills, most valuable experience, most useful resources, biggest constraints, areas to develop). 22 fields: 12 multi-select, 7 long-text, and one each of single-select, number and short-text (see `definitions/businessSelfAssessment.ts`).
+- Only three fields are required: `skills`, `startupCapital` (has an "I am not sure yet" option) and `limitations` (has "None that I know of"). Everything else is optional. Because the engine's rule is that a workbook is complete when no answer is invalid, required fields are answered and every section has at least one answer, the workbook shows Complete once the three required answers are in and the summary has at least one answer.
+- The workbook id, section ids, field ids and option values are stored keys. Do not rename them once released. A test lists every id to catch accidental renames.
+- Demo workbook removed from the user-facing Discovery page: it is no longer in `WORKBOOKS` (`registry.ts`), so `#/discovery/business-self-check` now shows "Workbook not found". The definition file stays only as a fixture for the existing engine tests. The Discovery page text no longer calls anything a technical demonstration.
+- Existing saved data: the demo's response (`workbook-response:business-self-check`), if any exists on a device, is left untouched in storage. The new workbook has its own id and slug, so it neither reads nor overwrites it. The orphaned record is harmless but remains until a deliberate clean-up is built (not part of this task).
+- Files: new `src/workbooks/definitions/businessSelfAssessment.ts`, `src/workbooks/businessSelfAssessment.test.ts`. Modified `src/workbooks/registry.ts`, `src/workbooks/definitions/businessSelfCheck.ts` (comment only), `src/pages/Discovery.tsx` (intro text), `src/workbooks/validateDefinition.test.ts` (one assertion: the demo is no longer registered), `docs/ARCHITECTURE.md`, `PROJECT_STATE.md`.
+- Tests added (19, `businessSelfAssessment.test.ts`): valid definition, title and introduction, section order, stable ids, length, required fields (exactly three), field types and multi-select use, help text, naira labels, hours validation, registry contents (demo not registered), empty-form render ("0 of 3 required answered"), progress (not started, in progress, complete, missing required), save and restore, and that saving the new workbook leaves a saved demo response unchanged.
+- **Verification caveat:** this sandbox had no network, so `npm ci` could not complete and the real `npm run typecheck`, `npm run build` and `npm test` (Vitest) were NOT run. What was run: the 19 new tests plus the existing `answers`, `definitionChange`, `saver`, `render` tests and 8 of 11 `responseStore` and 7 of 8 `validateDefinition` tests passed through a small stand-in test runner (esbuild + a hand-written `describe/it/expect`). The remaining existing tests failed only because the stand-in lacks `toThrow`/`rejects` matchers; `closeSafety.test.ts` was not run (needs `vi`). TypeScript was checked with a global `tsc` and stub declarations for `react`, `react-dom` and `vitest`: no errors in the new or changed files. Run `npm run typecheck`, `npm test` and `npm run build` before treating this as passing.
+- Not verified: layout and use of the workbook in a real browser or on Android (long multi-select lists on a phone, the section step list with the longer titles), and the wording with real users.
 
 ## Verification status
 Run in the delivery environment (no network, so `npm install` could not run):
@@ -382,14 +394,10 @@ Source materials; bundling permission; D14; roadmap structure (one item with sta
 fields); backup reminder wording.
 
 ## Next task
-**Task 005: confirm the build, decide storage input rules, then start the first workbook.**
-1. Commit and push Task 004.1 and confirm the "Android debug APK" workflow is green with the "Unit tests" step
-   (it has not yet run in CI for any task).
-2. Decide, and if approved implement with tests, what `putItem` and `importAll` must reject beyond a missing
-   id: a missing or empty `slug`, an unknown `type` or `status`, non-string fields. This closes the
-   "item without a slug bypasses uniqueness" gap before imports exist.
-3. Optional small tests first: `src/settings/theme.tsx` (uses storage) and the router's `currentPath`.
-4. Then begin the first workbook or content feature.
+**Task 007: confirm the build, then decide what follows the self-assessment.**
+1. On your machine run `npm ci`, `npm run typecheck`, `npm test` and `npm run build`, and open `#/discovery/business-self-assessment` on a phone-sized screen to check the long option lists and section step list. Commit and push, then confirm the "Android debug APK" workflow is green (it has not yet run in CI for any task since Task 003).
+2. Product decisions needed: (a) whether the Self-Assessment Summary should show the user's earlier answers beside the reflection questions (the engine has no read-only or computed fields today, so this needs engine work); (b) what the Dashboard Discovery card should show now that a real workbook exists (it is still hard-coded to "not-started"); (c) whether to clean the orphaned demo response out of storage.
+3. Still open from earlier: decide and implement stricter storage input rules (missing slug, unknown type or status) before imports exist.
 
 ## Handover instructions
 The next developer must read `DEVELOPER_GUIDE.md`, this file and `docs/ARCHITECTURE.md` before making

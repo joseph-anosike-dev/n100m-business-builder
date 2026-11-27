@@ -10,7 +10,9 @@ describe('validateDefinition', () => {
   it('accepts the demonstration workbook and everything in the registry', () => {
     expect(validateDefinition(businessSelfCheck)).toEqual([]);
     for (const w of WORKBOOKS) expect(validateDefinition(w)).toEqual([]);
-    expect(getWorkbook('business-self-check')).toBe(businessSelfCheck);
+    // Since Task 006 the demo is only a test fixture and is not registered.
+    expect(getWorkbook('business-self-check')).toBeUndefined();
+    expect(getWorkbook('business-self-assessment')).toBeDefined();
     expect(getWorkbook('nope')).toBeUndefined();
   });
 
