@@ -233,3 +233,42 @@
 .wb-banner--global {
   margin-bottom: var(--space-4);
 }
+
+/* Business Profile (Task 009): read-only review of the self-assessment. Existing tokens only. */
+
+.profile__entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.profile__entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.profile__label {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.profile__entries dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.profile__text {
+  white-space: pre-wrap;
+}
+
+.profile__list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}

@@ -10,7 +10,7 @@ import { sanitizeAnswers, workbookProgress } from './answers';
 import { businessSelfAssessment } from './definitions/businessSelfAssessment';
 import { loadResponse, type ResponseStorage } from './responseStore';
 import { getUnsaved } from './unsavedStore';
-import type { WorkbookDefinition } from './types';
+import type { Answers, WorkbookDefinition } from './types';
 
 export type DiscoveryStatus = ItemStatus;
 
@@ -31,7 +31,17 @@ export async function loadDiscoveryStatus(
   storage: ResponseStorage,
   def: WorkbookDefinition = DISCOVERY_WORKBOOK,
 ): Promise<DiscoveryStatus> {
+  return workbookProgress(def, await loadCurrentAnswers(storage, def)).status;
+}
+
+/**
+ * The newest answers for a workbook: unsaved answers held in memory if there are any, otherwise the
+ * saved ones. Always sanitised. Shared by the Dashboard card and the Business Profile. Read-only.
+ */
+export async function loadCurrentAnswers(
+  storage: ResponseStorage,
+  def: WorkbookDefinition = DISCOVERY_WORKBOOK,
+): Promise<Answers> {
   const unsaved = getUnsaved(def.id);
-  const answers = unsaved ? sanitizeAnswers(def, unsaved.answers) : await loadResponse(storage, def);
-  return workbookProgress(def, answers).status;
+  return unsaved ? sanitizeAnswers(def, unsaved.answers) : loadResponse(storage, def);
 }

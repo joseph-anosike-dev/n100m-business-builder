@@ -4,7 +4,7 @@
 Task 001 (application foundation), Task 001.1 (official brand palette), Task 002 (Capacitor and Android
 build integration), Task 003 (Vitest testing foundation), Task 004 (navigation and storage tests) and
 Task 004.1 (storage integrity and error fixes), Task 005 / 005.1 (workbook engine and data safety),
-Task 006 (Business Self-Assessment workbook), Task 008A (Dashboard Discovery progress) and Task 007 (explicit persistent Android debug signing, since reset to standard Gradle debug signing: see "Task 007 Reset") are delivered.
+Task 006 (Business Self-Assessment workbook), Task 008A (Dashboard Discovery progress), Task 009 (Business Profile screen) and Task 007 (explicit persistent Android debug signing, since reset to standard Gradle debug signing: see "Task 007 Reset") are delivered.
 The developer reports that
 `npm install`, `npm run typecheck` and `npm run build` succeed and that the debug APK was installed and tested
 on a physical phone with a satisfactory result (see "Verification status").
@@ -292,6 +292,18 @@ Task 004 assertion was weakened or removed.
 - **Verification (Linux sandbox, Node/npm available, `npm ci` run):** `npm run typecheck` exit 0; `npm test` 15 files, 272 passed (247 earlier + 25 new); `npm run build` exit 0 (80 modules).
 - **Not verified:** the `useDiscoveryStatus` hook and the Dashboard in a real browser or on Android (no DOM test environment in the project, none added); card state changing after completing the workbook and pressing back on a device; real IndexedDB behaviour (tests use an in-memory fake).
 
+## Completed in Task 009 (Business Profile screen, spec S13)
+- New read-only screen at `#/discovery/profile`: the answers from the Business Self-Assessment, grouped by the workbook's sections, with the question as asked and option **labels** (not stored values). Unanswered questions and empty sections are left out; a number shows its unit; written answers keep their line breaks and are escaped by React. A banner says "Based on your completed Business Self-Assessment" when the workbook is complete, or "not finished ... N of M questions answered" with a Continue link when it is not. No answers: an empty state with a link to start. Storage unreadable: an alert with Try again, and no answers shown.
+- **Derived, not stored.** The profile is rebuilt on every read from the existing `workbook-response` item (`loadCurrentAnswers` -> `sanitizeAnswers` -> `buildProfile`). No new storage, item type or second copy; it cannot disagree with the workbook. Answers held in memory after a failed save win over stored ones (same rule as the Dashboard card). Answers in `fields.preserved` (obsolete) are never shown. The screen never writes.
+- **Dashboard card:** "Review Business Profile" (complete) now links to `#/discovery/profile`; Start and Continue still open the workbook. The completed-card copy no longer promises "the path we suggested" (no path/recommendation logic exists); it now reads "See a summary of what you told us about yourself."
+- Editing is through the workbook ("Edit your answers" link). There is no in-place editing on the profile.
+- `/discovery/profile` is reserved: `Discovery.tsx` checks it before treating the last segment as a workbook id, and a test asserts no registered workbook uses the id `profile`. Android back from the profile goes to `/discovery` (existing `resolveBack` rule, unchanged).
+- New: `src/workbooks/profile.ts`, `profile.test.ts`, `useBusinessProfile.ts`, `src/pages/BusinessProfile.tsx`. Modified: `src/workbooks/discoveryStatus.ts` (new exported `loadCurrentAnswers`, extracted from `loadDiscoveryStatus`, behaviour unchanged), `src/pages/DiscoveryCard.tsx`, `src/pages/Discovery.tsx`, `src/styles/workbook.css` (profile block appended), `src/workbooks/discoveryStatus.test.ts` (one assertion: the complete card links to the profile; this is a deliberate behaviour change, not a weakened test), `docs/ARCHITECTURE.md`, this file. No dependency, storage-layer, routing-table, Android or workflow changes.
+- Tests added (33, `profile.test.ts`): empty/partial/complete profiles, labels instead of values, section and field order, units and line breaks, unanswered and empty sections omitted, status equals the workbook's, malformed answers (six shapes), unknown options and fields, all field types, loading from storage, no writes, follows later saves, preserved answers hidden, unsaved answers win, read failure rejects, demo response ignored, reserved route, and rendered screen states (loading, error, empty, complete, partial, HTML escaping) and card links.
+- **Verification caveat (this session had no network; `npm ci` crashed and left no usable `node_modules`):** the real `npm run typecheck`, `npm test` (Vitest) and `npm run build` were **NOT run**. What was run: the 33 new tests and the 25 `discoveryStatus` tests passed through a small stand-in runner (esbuild + a hand-written `describe/it/expect`, React 19 from a global install); other existing test files that need matchers the stand-in lacks (`toThrow`, `toBeDefined`, regex `toContain`) and `closeSafety`, `indexeddb`, `androidBack` were not usable there. A strict `tsc` over the new and changed files with loose stand-in declarations for `react` and `vitest` reported no errors in the new or changed source (only artefacts of the stubs). The profile screen was rendered in headless Chromium at 360px (light and dark) and 820px: no horizontal scroll, no touch target under 44px, long unbroken words wrap, no page errors. Run `npm ci`, `npm run typecheck`, `npm test` and `npm run build` before treating this as passing.
+- Not verified: the hook `useBusinessProfile` and the routed screen in a real running app or on Android; real IndexedDB; Android back from the profile on a device.
+- Not built (future): a stored `business-profile` item (needed by My Business and for Markdown export), a Discovery result / recommended path (S12), the S10 "starting from zero / existing business" choice, "Recommended next" on the Dashboard.
+
 ## Completed in Task 007 (explicit persistent debug signing) and its reset
 **History:** Task 007 added a dedicated N100M debug signing system (explicit `n100mDebug` signing config read from `N100M_*` environment variables, a `verifyN100mDebugSigning` Gradle task, keystore restore from `N100M_KEYSTORE_BASE64`, fingerprint comparison with `apksigner`, and a temporary-keystore cleanup step). **It was abandoned in the Task 007 Reset below and none of it remains.**
 
@@ -407,7 +419,7 @@ Outstanding verification for Task 003:
     callers should not show or log `cause` to users without thought.
   - Error messages are English only and plain text.
   - An aborted or failed database open is not retried automatically beyond the next call opening it again.
-- Dashboard "Recommended next" and "Continue where you left off" are still static placeholders. The Discovery card is live (Task 008A). There is no Business Profile screen yet; "Review Business Profile" opens the completed workbook.
+- Dashboard "Recommended next" and "Continue where you left off" are still static placeholders. The Discovery card is live (Task 008A) and "Review Business Profile" opens the read-only Business Profile (Task 009). There is no stored `business-profile` item, no Discovery result screen and no recommended path yet.
 - Currency setting is not built (Settings has theme only).
 - D14 still needs a product decision.
 - The `theme-color` meta tags still follow the operating system's light/dark setting in a browser. On Android the
@@ -419,10 +431,13 @@ Source materials; bundling permission; D14; roadmap structure (one item with sta
 fields); backup reminder wording.
 
 ## Next task
-**Task 008: confirm the build, then decide what follows the self-assessment.**
+**Task 010 (recommended): Backup and restore (Settings S82, S84 and the restore half of S83; spec 12.3, J8).**
+Why: data safety is a priority requirement and nothing exists yet. Every CI debug APK may need an uninstall, which deletes all saved answers (see Task 007 Reset), and the user now has a real, finished workbook and profile to lose. Offers, Leads and Models need the supplied source materials (spec 1.3: no framework content may be invented), which are still outstanding, so they are blocked.
+Scope sketch: a "Back up now" action that exports `exportAll()` as a ZIP with no server, a "last backed up" setting, and importing that ZIP with a snapshot taken first. Needs a product/engineering decision and network access: a ZIP writer (small in-repo store-only writer or a library) and Capacitor Filesystem/Share plugins to hand the file to Android (a browser download link does not work reliably in the WebView). Obsidian-compatible Markdown export (spec 14) comes after the plain backup works.
+Before that:
 0. No signing setup is needed (Task 007 Reset). Expect to uninstall the previous CI APK before installing a new one.
-1. On your machine run `npm ci`, `npm run typecheck`, `npm test` and `npm run build`, and open `#/discovery/business-self-assessment` on a phone-sized screen to check the long option lists and section step list. Commit and push, then confirm the "Android debug APK" workflow is green (it has not yet run in CI for any task since Task 003).
-2. Product decisions needed: (a) whether the Self-Assessment Summary should show the user's earlier answers beside the reflection questions (the engine has no read-only or computed fields today, so this needs engine work); (b) what the Dashboard Discovery card should show now that a real workbook exists (it is still hard-coded to "not-started"); (c) whether to clean the orphaned demo response out of storage.
+1. On your machine run `npm ci`, `npm run typecheck`, `npm test` and `npm run build`; open `#/discovery/profile` on a phone-sized screen and in dark mode; complete the assessment and confirm the Dashboard card now opens the profile. Commit and push, then confirm the "Android debug APK" workflow is green (it has not yet run in CI for any task since Task 003).
+2. Product decisions still open: D14 (mobile access path); whether to clean the orphaned demo response out of storage; whether the Self-Assessment Summary should show earlier answers beside its reflection questions (the profile now shows them together, so this may be unnecessary).
 3. Still open from earlier: decide and implement stricter storage input rules (missing slug, unknown type or status) before imports exist.
 
 ## Handover instructions

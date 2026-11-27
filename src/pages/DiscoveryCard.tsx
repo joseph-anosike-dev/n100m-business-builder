@@ -1,5 +1,6 @@
 import { Link } from '../app/router';
 import { discoveryRoute } from '../workbooks/discoveryStatus';
+import { PROFILE_ROUTE } from '../workbooks/profile';
 import type { DiscoveryLoad } from '../workbooks/useDiscoveryStatus';
 
 export type DiscoveryState = 'not-started' | 'in-progress' | 'complete';
@@ -18,12 +19,12 @@ export const DISCOVERY_COPY: Record<DiscoveryState, { title: string; body: strin
   },
   complete: {
     title: 'Review Business Profile',
-    body: 'See your profile and the path we suggested.',
+    body: 'See a summary of what you told us about yourself.',
     action: 'Review profile',
   },
 };
 
-/** Card for a known state. Its link always points at the Business Self-Assessment. */
+/** Card for a known state. Start and Continue open the Business Self-Assessment; Review opens the Business Profile. */
 export function DiscoveryCard({ load }: { load: DiscoveryLoad }) {
   if (load.kind === 'loading') {
     return (
@@ -48,7 +49,7 @@ export function DiscoveryCard({ load }: { load: DiscoveryLoad }) {
           Your saved progress could not be read right now. Opening the assessment will not change anything you saved.
         </p>
       ) : null}
-      <Link to={discoveryRoute()} className="btn btn--accent">
+      <Link to={state === 'complete' ? PROFILE_ROUTE : discoveryRoute()} className="btn btn--accent">
         {copy.action}
       </Link>
     </section>

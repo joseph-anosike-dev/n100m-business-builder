@@ -168,7 +168,8 @@ describe('Discovery card', () => {
     expect(DISCOVERY_COPY[status].title).toBe(title);
     expect(html).toContain(title);
     expect(html).toContain(action);
-    expect(html).toContain('href="#/discovery/business-self-assessment"');
+    // Start and Continue open the workbook; Review opens the Business Profile (Task 009).
+    expect(html).toContain(status === 'complete' ? 'href="#/discovery/profile"' : 'href="#/discovery/business-self-assessment"');
   });
 
   it('shows a neutral state, with no Start/Continue/Review wording, while loading', () => {

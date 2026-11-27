@@ -22,3 +22,6 @@ android/app/src/main/res/xml/config.xml
 *.keystore
 *.jks
 *.p12
+
+# Private Claude session prompt
+.claude-master-prompt.md

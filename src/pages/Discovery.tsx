@@ -1,12 +1,15 @@
 import { Link, useRoute } from '../app/router';
 import { PageHeader } from '../components/PageHeader';
+import { PROFILE_ROUTE } from '../workbooks/profile';
 import { WORKBOOKS } from '../workbooks/registry';
+import { BusinessProfile } from './BusinessProfile';
 import { WorkbookPage } from './WorkbookPage';
 
-/** /discovery lists workbooks; /discovery/<workbook-id> opens one. */
+/** /discovery lists workbooks; /discovery/profile is the Business Profile; /discovery/<workbook-id> opens a workbook. */
 export function Discovery() {
   const path = useRoute();
   const rest = path.replace(/^\/discovery\/?/, '');
+  if (path === PROFILE_ROUTE) return <BusinessProfile />;
   if (rest !== '') return <WorkbookPage workbookId={decodeURIComponent(rest.split('/')[0])} />;
 
   return (

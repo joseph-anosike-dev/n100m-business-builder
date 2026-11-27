@@ -133,6 +133,10 @@ Code lives in `src/workbooks/`. A workbook is plain data; the engine renders, va
 
 **Registered workbooks (Task 006).** `WORKBOOKS` holds one workbook: `business-self-assessment` (`definitions/businessSelfAssessment.ts`), at `#/discovery/business-self-assessment`. It has four sections (Personal Background, Resources, Preferences and Constraints, Self-Assessment Summary), 22 fields and three required fields (`skills`, `startupCapital`, `limitations`). Startup capital is a single-select of naira ranges (the currency setting is not built yet, so the symbol is fixed in the labels). The summary section is written by the user; nothing is generated from earlier answers. The original demo (`definitions/businessSelfCheck.ts`, id `business-self-check`) is **not registered**: users cannot reach it. The file is kept only as a fixture for the engine tests. Any response saved for it stays in storage as `workbook-response:business-self-check`; it is never read, changed or deleted by the app, and the new workbook uses a different id and slug, so the two cannot collide. If the demo should be removed from storage entirely, that needs a deliberate migration; none exists.
 
+## Business Profile (Task 009)
+
+`/discovery/profile` (`src/pages/BusinessProfile.tsx`) is a read-only review of the Business Self-Assessment. It is derived, not stored: `loadProfile` (`src/workbooks/profile.ts`) reads the answers through `loadCurrentAnswers` (`discoveryStatus.ts`: unsaved in-memory answers if any, otherwise the saved `workbook-response`, always sanitised) and `buildProfile` turns them into sections of answered questions with option labels. It reuses the workbook's own progress rules for its status, never writes, and ignores `fields.preserved`. The Dashboard card links Review to this screen and Start/Continue to the workbook. `Discovery.tsx` matches `PROFILE_ROUTE` before treating a path segment as a workbook id, so `profile` is a reserved workbook id. A stored `business-profile` item (for My Business and export) does not exist yet.
+
 ## Known limitations
 
 - Not yet exercised: large attachments, large ZIPs, quota inside the Capacitor WebView (spec 12.4).
