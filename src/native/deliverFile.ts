@@ -10,7 +10,12 @@ import { isNativeApp } from './platform';
  * The share sheet does not tell us whether the user finished saving, so success here means "handed
  * over", not "stored somewhere". The UI words it that way. The cache copy is left to the OS to clear.
  */
-export async function deliverFile(bytes: Uint8Array, filename: string, mediaType = 'application/zip'): Promise<void> {
+export async function deliverFile(
+  bytes: Uint8Array,
+  filename: string,
+  mediaType = 'application/zip',
+  dialogTitle = 'Save your backup',
+): Promise<void> {
   if (isNativeApp()) {
     const can = await Share.canShare();
     if (!can.value) throw new Error('Sharing is not available on this device.');
@@ -19,7 +24,7 @@ export async function deliverFile(bytes: Uint8Array, filename: string, mediaType
       data: bytesToBase64(bytes),
       directory: Directory.Cache,
     });
-    await Share.share({ title: filename, dialogTitle: 'Save your backup', url: written.uri });
+    await Share.share({ title: filename, dialogTitle, url: written.uri });
     return;
   }
   const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: mediaType }));

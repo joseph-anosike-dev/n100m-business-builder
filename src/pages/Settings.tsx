@@ -1,5 +1,6 @@
 import { PageHeader } from '../components/PageHeader';
 import { BackupSection } from '../settings/BackupSection';
+import { ExportSection } from '../settings/ExportSection';
 import { StorageStatusCard } from '../settings/StorageStatusCard';
 import { useTheme, type ThemePreference } from '../settings/theme';
 
@@ -40,10 +41,12 @@ export function Settings() {
 
       <BackupSection />
 
+      <ExportSection />
+
       <StorageStatusCard />
 
       <p className="muted">
-        Currency, Markdown export for Obsidian and AI options will be added in later releases.
+        Currency, Markdown import and AI options will be added in later releases.
       </p>
     </div>
   );

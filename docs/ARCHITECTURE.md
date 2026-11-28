@@ -24,7 +24,8 @@ src/
   components/   Shared UI: Icon, PageHeader, EmptyState
   domain/       Item envelope types (spec 11)
   pages/        One file per screen. Unbuilt modules use Placeholder
-  settings/     Theme preference (stored via the storage layer)
+  settings/     Theme preference (stored via the storage layer); Backup, Export and Storage cards
+  export/       Obsidian Markdown export (yaml writer, ZIP builder)
   storage/      StorageAdapter interface + IndexedDB implementation
   styles/       tokens.css (design tokens), base.css, shell.css, components.css
   routes.tsx    Maps a module to its screen
@@ -139,17 +140,28 @@ Code lives in `src/workbooks/`. A workbook is plain data; the engine renders, va
 
 ## Backup and restore (Task 010)
 
-`src/backup/` holds the logic, with no React and no Capacitor. `zip.ts` is a small ZIP writer and reader (stored entries only, CRC-checked, rejects compressed, encrypted or ZIP64 input). `backup.ts` builds a backup from `StorageAdapter.exportAll()` and restores one through `importAll()`. The archive is `_n100m/manifest.json`, `_n100m/items.json`, `_n100m/attachments.json` and `_attachments/<id>`; settings are never included. `parseBackup` validates everything before anything is written. `restoreBackup` first stores the current workspace as a backup ZIP in the `preImportSnapshot` setting (and aborts if it cannot), then runs the additive atomic `importAll`. `runBackup` records `lastBackupAt` only after the file has been delivered. `src/native/deliverFile.ts` is the only code that touches `@capacitor/filesystem` and `@capacitor/share`: Android writes to the cache directory and opens the share sheet (through the existing FileProvider); a browser downloads. The UI is `src/settings/BackupSection.tsx` (container) and `BackupSectionView.tsx` (presentation, tested without Capacitor). This is the plain backup format; the Obsidian Markdown export of spec 14 is separate and not built.
+`src/backup/` holds the logic, with no React and no Capacitor. `zip.ts` is a small ZIP writer and reader (stored entries only, CRC-checked, rejects compressed, encrypted or ZIP64 input). `backup.ts` builds a backup from `StorageAdapter.exportAll()` and restores one through `importAll()`. The archive is `_n100m/manifest.json`, `_n100m/items.json`, `_n100m/attachments.json` and `_attachments/<id>`; settings are never included. `parseBackup` validates everything before anything is written. `restoreBackup` first stores the current workspace as a backup ZIP in the `preImportSnapshot` setting (and aborts if it cannot), then runs the additive atomic `importAll`. `runBackup` records `lastBackupAt` only after the file has been delivered. `src/native/deliverFile.ts` is the only code that touches `@capacitor/filesystem` and `@capacitor/share`: Android writes to the cache directory and opens the share sheet (through the existing FileProvider); a browser downloads. The UI is `src/settings/BackupSection.tsx` (container) and `BackupSectionView.tsx` (presentation, tested without Capacitor). This is the plain backup format; the Obsidian Markdown export of spec 14 is separate (Task 012, below).
 
 ### Durability additions (Task 011)
 
 `backup/reminder.ts` decides, purely, whether the Dashboard shows the passive backup card (data exists and no backup in the last 7 days); `useBackupReminder` shows nothing while loading or on error. `storage/status.ts` reads `navigator.storage.persisted()` and `estimate()` for the Settings storage card and never throws. `loadSafetyCopy` (in `backup.ts`) reads and fully validates the `preImportSnapshot` setting; Settings offers to restore it through the same `restoreBackup`, which first takes a new snapshot of the current data.
+
+## Markdown export (Task 012)
+
+`src/export/` holds the logic, with no React and no Capacitor. `yaml.ts` is an output-only YAML writer (plain scalars only where unambiguous, otherwise double-quoted with JSON escapes plus escapes for U+0085, U+2028 and U+2029; lone surrogates become U+FFFD; exponent numbers written with a dot so YAML 1.1 readers still see numbers; nesting capped at 24). `markdownExport.ts` turns `StorageAdapter.exportAll()` into a ZIP using `backup/zip.ts`: `N100M-Workspace/<Folder>/<slug>.md`, `_attachments/<filename>` and `_n100m/manifest.json` (`format: n100m-markdown-export`, `schemaVersion`, `exportedAt`, `appVersion`, counts, `skippedItemIds`). The folder per item type is an exhaustive `Record<ItemType, string>`.
+
+- **Lossless frontmatter, derived body.** Frontmatter carries every item envelope field (`id`, `slug`, `type`, `title`, `status`, `created`, `updated`, `ai_assisted`, `links`, `source_ref`, `fields`). The stored body is written as is. Everything the exporter adds (workbook summary from the registered definition via `buildProfile`, `[[wikilinks]]` for resolvable `links`, `![[attachment]]` embeds) is placed between `GENERATED_START` and `GENERATED_END`, so an importer can drop it and a round trip stays equivalent.
+- **Names.** File stems come from slugs, cleaned for Windows, macOS, Android and `[[link]]` syntax, unique across the whole vault ignoring case, and assigned in a fixed order (slug, then id), so output does not depend on storage order. Wikilinks use the final names.
+- **Read-only.** The export writes nothing to storage and does not touch `lastBackupAt`; it is not a backup (spec 14.5 says backup and export are one ZIP; Task 010 built a separate backup format and that is kept). One unwritable item is skipped and reported; it never blocks the rest.
+- **Delivery and UI.** `native/deliverFile.ts` is reused (new optional `dialogTitle`). `settings/ExportSection.tsx` (container) and `ExportSectionView.tsx` (presentation) are on the Settings screen.
+- **App version.** `src/appVersion.ts` (`APP_VERSION`) feeds the manifest; a test keeps it equal to `package.json`.
+- **Not built:** import (spec 14.4, next task), tags, compression, tables and calculated fields (those item shapes do not exist yet).
 
 ## Known limitations
 
 - Not yet exercised: large attachments, large ZIPs, quota inside the Capacitor WebView (spec 12.4).
 - Android back-button handling and system-bar styling are implemented but not yet verified on a device.
 - The Android project is hand-written to the Capacitor 7 template and has not yet been built.
-- Automated tests (Vitest, `npm test`) cover back navigation, the navigation config and the storage layer (against fake-indexeddb). UI components, the router and theme settings are not yet tested. See `PROJECT_STATE.md` for remaining storage limitations.
+- Automated tests (Vitest, `npm test`) cover back navigation, the navigation config, the storage layer (against fake-indexeddb), workbooks, backup and restore, durability and the Markdown export. UI components, the router and theme settings are not yet tested. See `PROJECT_STATE.md` for remaining storage limitations.
 - Workbook response items use derived ids (`workbook-response:<workbookId>`) rather than UUIDs. General UUID/slug helpers for other item types still do not exist.
 - Workbook tests render to static markup and test pure logic; there are no browser interaction tests (clicking, typing) and no tests against real IndexedDB for responses.
