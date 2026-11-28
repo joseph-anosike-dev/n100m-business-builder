@@ -1,4 +1,5 @@
 import { PageHeader } from '../components/PageHeader';
+import { BackupSection } from '../settings/BackupSection';
 import { useTheme, type ThemePreference } from '../settings/theme';
 
 const THEMES: { value: ThemePreference; label: string }[] = [
@@ -36,8 +37,10 @@ export function Settings() {
         </fieldset>
       </section>
 
+      <BackupSection />
+
       <p className="muted">
-        Currency, backup, import, export and AI options will be added in later releases.
+        Currency, Markdown export for Obsidian and AI options will be added in later releases.
       </p>
     </div>
   );

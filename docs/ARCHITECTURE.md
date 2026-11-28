@@ -13,7 +13,7 @@ Status: foundation (Task 001). Specification baseline: Master Product Specificat
 | Persistence | IndexedDB behind `StorageAdapter` (`src/storage/`) | Spec D6. Raw IndexedDB, no wrapper library. |
 | Android | Capacitor 7 wrapping `dist/` (`android/`, `capacitor.config.ts`) | Spec D1. Debug APK built by `.github/workflows/android-debug-apk.yml`, signed with the Android Gradle Plugin's standard automatically managed debug keystore (no custom keystore or secrets; release signing is separate and not configured; see `PROJECT_STATE.md`, Task 007 Reset). Native-only code is isolated in `src/native/` and is a no-op in a browser. |
 
-Runtime dependencies: `react`, `react-dom`, and the Capacitor packages `@capacitor/core`, `@capacitor/app`, `@capacitor/android` (`@capacitor/cli` is a dev dependency).
+Runtime dependencies: `react`, `react-dom`, and the Capacitor packages `@capacitor/core`, `@capacitor/app`, `@capacitor/android`, `@capacitor/filesystem`, `@capacitor/share` (`@capacitor/cli` is a dev dependency).
 
 ## Structure
 
@@ -136,6 +136,10 @@ Code lives in `src/workbooks/`. A workbook is plain data; the engine renders, va
 ## Business Profile (Task 009)
 
 `/discovery/profile` (`src/pages/BusinessProfile.tsx`) is a read-only review of the Business Self-Assessment. It is derived, not stored: `loadProfile` (`src/workbooks/profile.ts`) reads the answers through `loadCurrentAnswers` (`discoveryStatus.ts`: unsaved in-memory answers if any, otherwise the saved `workbook-response`, always sanitised) and `buildProfile` turns them into sections of answered questions with option labels. It reuses the workbook's own progress rules for its status, never writes, and ignores `fields.preserved`. The Dashboard card links Review to this screen and Start/Continue to the workbook. `Discovery.tsx` matches `PROFILE_ROUTE` before treating a path segment as a workbook id, so `profile` is a reserved workbook id. A stored `business-profile` item (for My Business and export) does not exist yet.
+
+## Backup and restore (Task 010)
+
+`src/backup/` holds the logic, with no React and no Capacitor. `zip.ts` is a small ZIP writer and reader (stored entries only, CRC-checked, rejects compressed, encrypted or ZIP64 input). `backup.ts` builds a backup from `StorageAdapter.exportAll()` and restores one through `importAll()`. The archive is `_n100m/manifest.json`, `_n100m/items.json`, `_n100m/attachments.json` and `_attachments/<id>`; settings are never included. `parseBackup` validates everything before anything is written. `restoreBackup` first stores the current workspace as a backup ZIP in the `preImportSnapshot` setting (and aborts if it cannot), then runs the additive atomic `importAll`. `runBackup` records `lastBackupAt` only after the file has been delivered. `src/native/deliverFile.ts` is the only code that touches `@capacitor/filesystem` and `@capacitor/share`: Android writes to the cache directory and opens the share sheet (through the existing FileProvider); a browser downloads. The UI is `src/settings/BackupSection.tsx` (container) and `BackupSectionView.tsx` (presentation, tested without Capacitor). This is the plain backup format; the Obsidian Markdown export of spec 14 is separate and not built.
 
 ## Known limitations
 
