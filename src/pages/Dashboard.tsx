@@ -2,13 +2,16 @@ import { Icon } from '../components/Icon';
 import { PageHeader } from '../components/PageHeader';
 import { Link } from '../app/router';
 import { getModule, type ModuleId } from '../app/navigation';
+import { useBackupReminder } from '../backup/useBackupReminder';
 import { useDiscoveryStatus } from '../workbooks/useDiscoveryStatus';
+import { BackupReminderCard } from './BackupReminderCard';
 import { DiscoveryCard } from './DiscoveryCard';
 
 const JUMP_TO: ModuleId[] = ['offers', 'leads', 'models', 'roadmap', 'business', 'library'];
 
 export function Dashboard() {
   const discovery = useDiscoveryStatus();
+  const backupReminder = useBackupReminder();
   return (
     <div className="page">
       <PageHeader
@@ -17,6 +20,8 @@ export function Dashboard() {
       />
 
       <DiscoveryCard load={discovery} />
+
+      <BackupReminderCard reminder={backupReminder} />
 
       <div className="dash-grid">
         <section className="card" aria-labelledby="recommended-title">

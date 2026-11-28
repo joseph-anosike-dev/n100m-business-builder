@@ -28,6 +28,9 @@ export interface BackupSectionViewProps {
   onChooseFile: (file: File) => void;
   onConfirmRestore: () => void;
   onCancelRestore: () => void;
+  /** The safety copy saved before the last restore, if there is a readable one. */
+  safetyCopy?: { created: string; counts: { items: number; attachments: number } } | null;
+  onRestoreSafetyCopy?: () => void;
 }
 
 /** Presentation only, so every state can be rendered in tests. */
@@ -73,6 +76,21 @@ export function BackupSectionView(p: BackupSectionViewProps) {
           }}
         />
       </div>
+
+      {p.safetyCopy && p.onRestoreSafetyCopy ? (
+        <div>
+          <p className="muted">
+            <strong>Safety copy:</strong> before your last restore, the app saved a copy of what was here on{' '}
+            {formatWhen(p.safetyCopy.created)} ({plural(p.safetyCopy.counts.items, 'item', 'items')}). You can put those
+            versions back. Anything added since then is kept.
+          </p>
+          <div className="backup__actions">
+            <button type="button" className="btn" onClick={p.onRestoreSafetyCopy} disabled={busy || confirming}>
+              Restore the safety copy
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {p.status.kind === 'working' && p.status.what !== 'backup' ? (
         <p role="status" className="muted">

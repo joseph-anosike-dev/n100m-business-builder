@@ -141,6 +141,10 @@ Code lives in `src/workbooks/`. A workbook is plain data; the engine renders, va
 
 `src/backup/` holds the logic, with no React and no Capacitor. `zip.ts` is a small ZIP writer and reader (stored entries only, CRC-checked, rejects compressed, encrypted or ZIP64 input). `backup.ts` builds a backup from `StorageAdapter.exportAll()` and restores one through `importAll()`. The archive is `_n100m/manifest.json`, `_n100m/items.json`, `_n100m/attachments.json` and `_attachments/<id>`; settings are never included. `parseBackup` validates everything before anything is written. `restoreBackup` first stores the current workspace as a backup ZIP in the `preImportSnapshot` setting (and aborts if it cannot), then runs the additive atomic `importAll`. `runBackup` records `lastBackupAt` only after the file has been delivered. `src/native/deliverFile.ts` is the only code that touches `@capacitor/filesystem` and `@capacitor/share`: Android writes to the cache directory and opens the share sheet (through the existing FileProvider); a browser downloads. The UI is `src/settings/BackupSection.tsx` (container) and `BackupSectionView.tsx` (presentation, tested without Capacitor). This is the plain backup format; the Obsidian Markdown export of spec 14 is separate and not built.
 
+### Durability additions (Task 011)
+
+`backup/reminder.ts` decides, purely, whether the Dashboard shows the passive backup card (data exists and no backup in the last 7 days); `useBackupReminder` shows nothing while loading or on error. `storage/status.ts` reads `navigator.storage.persisted()` and `estimate()` for the Settings storage card and never throws. `loadSafetyCopy` (in `backup.ts`) reads and fully validates the `preImportSnapshot` setting; Settings offers to restore it through the same `restoreBackup`, which first takes a new snapshot of the current data.
+
 ## Known limitations
 
 - Not yet exercised: large attachments, large ZIPs, quota inside the Capacitor WebView (spec 12.4).

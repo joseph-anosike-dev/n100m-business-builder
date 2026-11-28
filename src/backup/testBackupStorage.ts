@@ -6,6 +6,8 @@ import type { Attachment, WorkspaceSnapshot } from '../storage/types';
 import type { BackupStorage } from './backup';
 
 export interface MemoryBackupStorage extends BackupStorage {
+  queryItems(): Promise<Item[]>;
+  failQuery?: Error;
   items: Map<string, Item>;
   attachments: Map<string, Attachment>;
   settings: Map<string, unknown>;
@@ -21,6 +23,10 @@ export function memoryBackupStorage(): MemoryBackupStorage {
     attachments: new Map(),
     settings: new Map(),
     importCount: 0,
+    async queryItems() {
+      if (store.failQuery) throw store.failQuery;
+      return [...store.items.values()];
+    },
     async exportAll(): Promise<WorkspaceSnapshot> {
       if (store.failExport) throw store.failExport;
       return { items: [...store.items.values()].map((i) => structuredClone(i)), attachments: [...store.attachments.values()] };

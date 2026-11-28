@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react';
-import { BackupError, getLastBackup, parseBackup, restoreBackup, runBackup } from '../backup/backup';
+import {
+  BackupError,
+  getLastBackup,
+  loadSafetyCopy,
+  parseBackup,
+  restoreBackup,
+  runBackup,
+  type SafetyCopy,
+} from '../backup/backup';
 import { deliverFile } from '../native/deliverFile';
 import { getStorage } from '../storage';
-import { BackupSectionView, type BackupStatus } from './BackupSectionView';
+import { BackupSectionView, formatWhen, type BackupStatus } from './BackupSectionView';
 
 function messageOf(e: unknown, fallback: string): string {
   return e instanceof BackupError ? e.message : fallback;
@@ -11,6 +19,18 @@ function messageOf(e: unknown, fallback: string): string {
 export function BackupSection() {
   const [status, setStatus] = useState<BackupStatus>({ kind: 'idle' });
   const [lastBackupAt, setLastBackupAt] = useState<string | null | undefined>(undefined);
+  const [safetyCopy, setSafetyCopy] = useState<SafetyCopy | undefined>(undefined);
+  const [safetyRefresh, setSafetyRefresh] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadSafetyCopy(getStorage()).then((c) => {
+      if (!cancelled) setSafetyCopy(c);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [safetyRefresh]);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,7 +70,10 @@ export function BackupSection() {
     const { parsed } = status;
     setStatus({ kind: 'working', what: 'restore' });
     restoreBackup(getStorage(), parsed)
-      .then((report) => setStatus({ kind: 'restored', report }))
+      .then((report) => {
+        setStatus({ kind: 'restored', report });
+        setSafetyRefresh((n) => n + 1);
+      })
       .catch((e: unknown) => setStatus({ kind: 'error', message: messageOf(e, 'The restore failed. Nothing was changed.') }));
   };
 
@@ -62,6 +85,17 @@ export function BackupSection() {
       onChooseFile={onChooseFile}
       onConfirmRestore={onConfirmRestore}
       onCancelRestore={() => setStatus({ kind: 'idle' })}
+      safetyCopy={safetyCopy ? { created: safetyCopy.created, counts: safetyCopy.parsed.manifest.counts } : null}
+      onRestoreSafetyCopy={
+        safetyCopy
+          ? () =>
+              setStatus({
+                kind: 'confirm',
+                fileName: `your safety copy from ${formatWhen(safetyCopy.created)}`,
+                parsed: safetyCopy.parsed,
+              })
+          : undefined
+      }
     />
   );
 }

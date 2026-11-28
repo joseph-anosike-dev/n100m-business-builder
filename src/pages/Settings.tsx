@@ -1,5 +1,6 @@
 import { PageHeader } from '../components/PageHeader';
 import { BackupSection } from '../settings/BackupSection';
+import { StorageStatusCard } from '../settings/StorageStatusCard';
 import { useTheme, type ThemePreference } from '../settings/theme';
 
 const THEMES: { value: ThemePreference; label: string }[] = [
@@ -38,6 +39,8 @@ export function Settings() {
       </section>
 
       <BackupSection />
+
+      <StorageStatusCard />
 
       <p className="muted">
         Currency, Markdown export for Obsidian and AI options will be added in later releases.

@@ -267,6 +267,29 @@ export interface StoredSnapshot {
   data: Uint8Array;
 }
 
+export interface SafetyCopy {
+  /** When the snapshot was taken (just before a restore). */
+  created: string;
+  filename: string;
+  parsed: ParsedBackup;
+}
+
+/**
+ * The safety snapshot saved before the last restore, validated like any backup file. Returns undefined if
+ * there is none or it is unreadable or damaged. Never throws and never writes.
+ */
+export async function loadSafetyCopy(storage: Pick<StorageAdapter, 'getSetting'>): Promise<SafetyCopy | undefined> {
+  try {
+    const v = await storage.getSetting<unknown>(SNAPSHOT_SETTING);
+    if (!isRecord(v)) return undefined;
+    if (typeof v.created !== 'string' || Number.isNaN(Date.parse(v.created))) return undefined;
+    if (typeof v.filename !== 'string' || !(v.data instanceof Uint8Array)) return undefined;
+    return { created: v.created, filename: v.filename, parsed: parseBackup(v.data) };
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Restore a validated backup into the workspace.
  * 1. Save the current workspace as a safety snapshot. If that fails, nothing is imported.

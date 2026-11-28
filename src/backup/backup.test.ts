@@ -6,6 +6,7 @@ import {
   createBackup,
   getLastBackup,
   LAST_BACKUP_SETTING,
+  loadSafetyCopy,
   parseBackup,
   restoreBackup,
   runBackup,
@@ -351,5 +352,70 @@ describe('runBackup and the last-backed-up time', () => {
     s.settings.set(LAST_BACKUP_SETTING, 42);
     expect(await getLastBackup(s)).toBeUndefined();
     expect(await getLastBackup({ getSetting: async () => { throw new Error('x'); } })).toBeUndefined();
+  });
+});
+
+describe('the safety copy (restoring what was here before the last restore)', () => {
+  it('is undefined before any restore', async () => {
+    expect(await loadSafetyCopy(memoryBackupStorage())).toBeUndefined();
+  });
+
+  it('is available after a restore, validated, with the previous data', async () => {
+    const { s } = await filled();
+    const backup = parseBackup((await createBackup(s, NOW)).bytes);
+    const target = memoryBackupStorage();
+    target.items.set('item-1', sampleItem(1, { title: 'My newer work' }));
+    await restoreBackup(target, backup, NOW);
+    const copy = await loadSafetyCopy(target);
+    expect(copy?.created).toBe(NOW.toISOString());
+    expect(copy?.parsed.snapshot.items.map((i) => i.title)).toEqual(['My newer work']);
+    expect(copy?.parsed.manifest.counts).toEqual({ items: 1, attachments: 0 });
+  });
+
+  it('puts replaced versions back and keeps items added since, then keeps a new safety copy', async () => {
+    const { s } = await filled();
+    const backup = parseBackup((await createBackup(s, NOW)).bytes);
+    const target = memoryBackupStorage();
+    target.items.set('item-1', sampleItem(1, { title: 'Before restore' }));
+    await restoreBackup(target, backup, NOW); // item-1 replaced, item-2 added
+    expect(target.items.get('item-1')!.title).toBe('Note 1 ₦ é');
+
+    const copy = await loadSafetyCopy(target);
+    const later = new Date(2026, 2, 10, 9, 0, 0);
+    await restoreBackup(target, copy!.parsed, later);
+
+    expect(target.items.get('item-1')!.title).toBe('Before restore');
+    expect(target.items.has('item-2')).toBe(true); // added by the first restore, kept
+    const newer = await loadSafetyCopy(target);
+    expect(newer?.created).toBe(later.toISOString());
+    expect(newer?.parsed.snapshot.items.length).toBe(2);
+  });
+
+  it('is read-only', async () => {
+    const target = memoryBackupStorage();
+    await restoreBackup(target, parseBackup((await createBackup(memoryBackupStorage(), NOW)).bytes), NOW);
+    const before = JSON.stringify([...target.settings.entries()].map(([k, v]) => [k, (v as StoredSnapshot).created]));
+    await loadSafetyCopy(target);
+    expect(JSON.stringify([...target.settings.entries()].map(([k, v]) => [k, (v as StoredSnapshot).created]))).toBe(before);
+    expect(target.importCount).toBe(1);
+  });
+
+  it.each([
+    ['a string', 'oops'],
+    ['null', null],
+    ['an array', []],
+    ['no created', { filename: 'x.zip', data: new Uint8Array(3) }],
+    ['a bad date', { created: 'nope', filename: 'x.zip', data: new Uint8Array(3) }],
+    ['no filename', { created: '2026-03-09T00:00:00.000Z', data: new Uint8Array(3) }],
+    ['data that is not bytes', { created: '2026-03-09T00:00:00.000Z', filename: 'x.zip', data: 'abc' }],
+    ['bytes that are not a backup', { created: '2026-03-09T00:00:00.000Z', filename: 'x.zip', data: new Uint8Array(40) }],
+  ])('is undefined, not an error, for %s', async (_name, value) => {
+    const s = memoryBackupStorage();
+    s.settings.set(SNAPSHOT_SETTING, value);
+    expect(await loadSafetyCopy(s)).toBeUndefined();
+  });
+
+  it('is undefined if settings cannot be read', async () => {
+    expect(await loadSafetyCopy({ getSetting: async () => { throw new Error('x'); } })).toBeUndefined();
   });
 });
